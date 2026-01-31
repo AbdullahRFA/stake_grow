@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 
 class CommunityDashboardScreen extends ConsumerWidget {
@@ -91,9 +92,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
               children: [
                 _buildActionButton(Icons.volunteer_activism, 'Donate', () {
                   // ডোনেশন পেজ (Phase 7)
+                  context.push('/create-donation', extra: community.id);
                 }),
                 _buildActionButton(Icons.request_quote, 'Loan', () {
                   // লোন পেজ
+                  context.push('/create-loan', extra: community.id);
                 }),
                 _buildActionButton(Icons.bar_chart, 'Invest', () {
                   // ইনভেস্টমেন্ট পেজ

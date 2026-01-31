@@ -11,6 +11,9 @@ import '../features/community/presentation/screens/create_community_screen.dart'
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/screens/community_dashboard_screen.dart';
 
+import '../features/donation/presentation/screens/create_donation_screen.dart';
+import '../features/loan/presentation/screens/create_loan_screen.dart';
+
 
 // গ্লোবাল নেভিগেটর কি (Key)
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -49,6 +52,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           // আমরা 'extra' প্যারামিটার দিয়ে পুরো কমিউনিটি অবজেক্ট পাস করছি
           final community = state.extra as CommunityModel;
           return CommunityDashboardScreen(community: community);
+        },
+      ),
+      GoRoute(
+        path: '/create-donation',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return CreateDonationScreen(communityId: communityId);
+        },
+      ),
+      GoRoute(
+        path: '/create-loan',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return CreateLoanScreen(communityId: communityId);
         },
       ),
     ],
