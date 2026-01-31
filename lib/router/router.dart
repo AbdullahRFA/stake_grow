@@ -6,6 +6,8 @@ import 'package:stake_grow/features/auth/presentation/screens/login_screen.dart'
 import 'package:stake_grow/features/auth/presentation/screens/signup_screen.dart';
 import 'package:stake_grow/features/community/presentation/screens/home_screen.dart';
 
+import '../features/community/presentation/screens/create_community_screen.dart';
+
 // গ্লোবাল নেভিগেটর কি (Key)
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -32,6 +34,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/signup',
         builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: '/create-community',
+        builder: (context, state) => const CreateCommunityScreen(),
       ),
     ],
 
