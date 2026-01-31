@@ -12,6 +12,7 @@ import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/screens/community_dashboard_screen.dart';
 
 import '../features/donation/presentation/screens/create_donation_screen.dart';
+import '../features/investment/presentation/screens/create_investment_screen.dart';
 import '../features/loan/presentation/screens/create_loan_screen.dart';
 
 
@@ -66,6 +67,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final communityId = state.extra as String;
           return CreateLoanScreen(communityId: communityId);
+        },
+      ),
+      GoRoute(
+        path: '/create-investment',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return CreateInvestmentScreen(communityId: communityId);
         },
       ),
     ],

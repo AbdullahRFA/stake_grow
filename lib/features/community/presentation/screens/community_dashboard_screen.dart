@@ -100,6 +100,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 }),
                 _buildActionButton(Icons.bar_chart, 'Invest', () {
                   // ইনভেস্টমেন্ট পেজ
+                  context.push('/create-investment', extra: community.id);
                 }),
                 _buildActionButton(Icons.event, 'Activity', () {
                   // এক্টিভিটি পেজ
