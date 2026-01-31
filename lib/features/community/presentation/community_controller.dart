@@ -6,13 +6,25 @@ import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:uuid/uuid.dart';
 
-// 1. Stream Provider: এটি ইউজারের কমিউনিটি লিস্ট রিয়েল-টাইমে মনিটর করবে
+// ✅ UPDATE: এই প্রভাইডারটি এখন স্মার্টলি কাজ করবে
 final userCommunitiesProvider = StreamProvider((ref) {
-  final communityController = ref.watch(communityControllerProvider.notifier);
-  return communityController.getUserCommunities();
+  // ১. অথেনটিকেশন স্টেটের দিকে নজর রাখা (Watch)
+  final authState = ref.watch(authStateChangeProvider);
+
+  // ২. যদি ইউজার লগিন থাকে, তবেই ডাটা আনো
+  return authState.when(
+    data: (user) {
+      if (user != null) {
+        final repository = ref.watch(communityRepositoryProvider);
+        return repository.getUserCommunities(user.uid);
+      }
+      return Stream.value([]); // ইউজার না থাকলে খালি লিস্ট
+    },
+    error: (error, stackTrace) => Stream.value([]),
+    loading: () => Stream.value([]),
+  );
 });
 
-// 2. Controller Provider
 final communityControllerProvider = StateNotifierProvider<CommunityController, bool>((ref) {
   final communityRepository = ref.watch(communityRepositoryProvider);
   return CommunityController(communityRepository: communityRepository, ref: ref);
@@ -20,48 +32,41 @@ final communityControllerProvider = StateNotifierProvider<CommunityController, b
 
 class CommunityController extends StateNotifier<bool> {
   final CommunityRepository _communityRepository;
-  final Ref _ref; // অন্য প্রভাইডার (যেমন: User) পড়ার জন্য Ref লাগে
+  final Ref _ref;
 
   CommunityController({
     required CommunityRepository communityRepository,
     required Ref ref,
   })  : _communityRepository = communityRepository,
         _ref = ref,
-        super(false); // লোডিং ফলস
+        super(false);
 
-  // কমিউনিটি তৈরি করার ফাংশন
   void createCommunity(String name, BuildContext context) async {
-    state = true; // লোডিং শুরু
-
-    // ক) বর্তমান ইউজারের আইডি বের করা
-    // authStateChangeProvider থেকে আমরা ইউজার অবজেক্ট পাচ্ছি
+    state = true;
+    // এখানে read ব্যবহার করা ঠিক আছে কারণ এটি বাটনে চাপ দিলে কল হয়
     final user = _ref.read(authStateChangeProvider).value;
 
     if (user != null) {
-      // খ) ইউনিক আইডি জেনারেট করা
       final communityId = const Uuid().v1();
 
-      // গ) মডেল সাজানো
       CommunityModel community = CommunityModel(
         id: communityId,
         name: name,
         adminId: user.uid,
-        members: [user.uid], // এডমিন নিজেই প্রথম মেম্বার
+        members: [user.uid],
         totalFund: 0.0,
-        inviteCode: const Uuid().v4().substring(0, 6), // ছোট ৬ সংখ্যার ইনভাইট কোড
+        inviteCode: const Uuid().v4().substring(0, 6),
         createdAt: DateTime.now(),
       );
 
-      // ঘ) রিপোজিটরিতে পাঠানো
       final res = await _communityRepository.createCommunity(community);
-
-      state = false; // লোডিং শেষ
+      state = false;
 
       res.fold(
-            (l) => showSnackBar(context, l.message), // এরর হলে
+            (l) => showSnackBar(context, l.message),
             (r) {
           showSnackBar(context, 'Community Created Successfully! 🚀');
-          Navigator.pop(context); // ডায়ালগ বা পেজ বন্ধ করা
+          Navigator.pop(context);
         },
       );
     } else {
@@ -70,12 +75,6 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
-  // স্ট্রিম ফাংশন
-  Stream<List<CommunityModel>> getUserCommunities() {
-    final user = _ref.read(authStateChangeProvider).value;
-    if (user != null) {
-      return _communityRepository.getUserCommunities(user.uid);
-    }
-    return Stream.value([]); // ইউজার না থাকলে খালি লিস্ট
-  }
+// আগের getUserCommunities ফাংশনটি এখন আর এখানে দরকার নেই,
+// কারণ আমরা সরাসরি প্রভাইডারের ভেতরেই লজিক লিখে দিয়েছি।
 }
