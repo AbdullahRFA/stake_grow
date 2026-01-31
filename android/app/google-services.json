@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "56088354024",
+    "project_id": "stake-grow-app",
+    "storage_bucket": "stake-grow-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:56088354024:android:27f4b6bf985fc77d087d5d",
+        "android_client_info": {
+          "package_name": "com.example.stake_grow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeob8WWkJVm3NcwXwbaEGM1IijmOa2lo8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

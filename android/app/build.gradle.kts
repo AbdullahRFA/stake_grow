@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -24,7 +27,13 @@ android {
         applicationId = "com.example.stake_grow"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+
+        // 🔴 আগের লাইন (মুছে ফেলো বা কমেন্ট করো):
+        // minSdk = flutter.minSdkVersion
+
+        // 🟢 নতুন লাইন (Firebase এর জন্য অন্তত ২১ লাগবে):
+        minSdk = 21
+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
