@@ -4,6 +4,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/auth/presentation/screens/signup_screen.dart'; // এটা পরের স্টেপে বানাবো
+import 'package:go_router/go_router.dart'; // ইম্পোর্ট করতে ভুলো না
 
 class LoginScreen extends HookConsumerWidget {
   const LoginScreen({super.key});
@@ -107,10 +108,7 @@ class LoginScreen extends HookConsumerWidget {
               // Sign Up Link (Temporary Navigation)
               TextButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const SignUpScreen()),
-                  );
+                  context.push('/signup'); // GoRouter স্টাইল
                 },
                 child: const Text('Don\'t have an account? Sign Up'),
               ),
