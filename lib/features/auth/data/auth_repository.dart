@@ -98,13 +98,18 @@ class AuthRepository implements IAuthRepository {
       );
 
       if (userCredential.user != null) {
-        // B. লগিন সফল হলে ডাটাবেস থেকে ইউজারের ডিটেইলস আনা
+        // B. ডাটাবেস থেকে ডাটা আনা
         final doc = await _firestore
             .collection('users')
             .doc(userCredential.user!.uid)
             .get();
 
-        // C. ডাটাবেসের JSON কে UserModel এ কনভার্ট করা
+        // 🔴 FIX: চেক করা ডকুমেন্টটি আদৌ আছে কিনা
+        if (!doc.exists || doc.data() == null) {
+          return left(Failure('User profile data not found! Please contact support.'));
+        }
+
+        // C. ডাটা থাকলে কনভার্ট করা
         UserModel user = UserModel.fromMap(doc.data() as Map<String, dynamic>);
         return right(user);
       }
