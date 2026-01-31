@@ -52,10 +52,8 @@ class HomeScreen extends ConsumerWidget {
               return CommunityCard(
                 community: community,
                 onTap: () {
-                  // এখানে আমরা পরে ড্যাশবোর্ডে যাওয়ার কোড লিখব
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Opening ${community.name}...')),
-                  );
+                  // ✅ UPDATE: ক্লিক করলে ড্যাশবোর্ডে নিয়ে যাবে এবং ডাটা সাথে নিবে
+                  context.push('/community-dashboard', extra: community);
                 },
               );
             },

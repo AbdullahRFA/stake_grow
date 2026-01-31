@@ -8,6 +8,10 @@ import 'package:stake_grow/features/community/presentation/screens/home_screen.d
 
 import '../features/community/presentation/screens/create_community_screen.dart';
 
+import 'package:stake_grow/features/community/domain/community_model.dart';
+import 'package:stake_grow/features/community/presentation/screens/community_dashboard_screen.dart';
+
+
 // গ্লোবাল নেভিগেটর কি (Key)
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -38,6 +42,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/create-community',
         builder: (context, state) => const CreateCommunityScreen(),
+      ),
+      GoRoute(
+        path: '/community-dashboard',
+        builder: (context, state) {
+          // আমরা 'extra' প্যারামিটার দিয়ে পুরো কমিউনিটি অবজেক্ট পাস করছি
+          final community = state.extra as CommunityModel;
+          return CommunityDashboardScreen(community: community);
+        },
       ),
     ],
 
