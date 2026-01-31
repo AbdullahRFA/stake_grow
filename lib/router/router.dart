@@ -6,6 +6,7 @@ import 'package:stake_grow/features/auth/presentation/screens/login_screen.dart'
 import 'package:stake_grow/features/auth/presentation/screens/signup_screen.dart';
 import 'package:stake_grow/features/community/presentation/screens/home_screen.dart';
 
+import '../features/activity/presentation/screens/create_activity_screen.dart';
 import '../features/community/presentation/screens/create_community_screen.dart';
 
 import 'package:stake_grow/features/community/domain/community_model.dart';
@@ -74,6 +75,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final communityId = state.extra as String;
           return CreateInvestmentScreen(communityId: communityId);
+        },
+      ),
+      GoRoute(
+        path: '/create-activity',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return CreateActivityScreen(communityId: communityId);
         },
       ),
     ],

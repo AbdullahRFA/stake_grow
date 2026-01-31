@@ -104,6 +104,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 }),
                 _buildActionButton(Icons.event, 'Activity', () {
                   // এক্টিভিটি পেজ
+                  context.push('/create-activity', extra: community.id);
                 }),
               ],
             ),
