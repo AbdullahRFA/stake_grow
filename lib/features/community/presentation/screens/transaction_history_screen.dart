@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
+// ✅ Import Loan Features
+import 'package:stake_grow/features/loan/domain/loan_model.dart';
+import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 
 class TransactionHistoryScreen extends ConsumerWidget {
   final String communityId;
@@ -11,15 +14,18 @@ class TransactionHistoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3, // ৩টি ট্যাব
+      length: 4, // ✅ UPDATE: এখন ৪টি ট্যাব (Donation, Investment, Expense, Loans)
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Transparency & History'),
           bottom: const TabBar(
+            isScrollable: true, // ছোট স্ক্রিনে ট্যাবগুলো যেন এঁটে যায়
             tabs: [
               Tab(text: 'Donations', icon: Icon(Icons.volunteer_activism)),
               Tab(text: 'Investments', icon: Icon(Icons.trending_up)),
               Tab(text: 'Expenses', icon: Icon(Icons.money_off)),
+              // ✅ New Tab
+              Tab(text: 'Loans', icon: Icon(Icons.request_quote)),
             ],
             labelColor: Colors.teal,
             unselectedLabelColor: Colors.grey,
@@ -36,6 +42,9 @@ class TransactionHistoryScreen extends ConsumerWidget {
 
             // Tab 3: Activities (Expenses) List
             _ActivityList(communityId: communityId),
+
+            // ✅ Tab 4: Loans List (With Admin Approval)
+            _LoanList(communityId: communityId),
           ],
         ),
       ),
@@ -55,10 +64,8 @@ class _DonationList extends ConsumerWidget {
 
     return donations.when(
       loading: () => const Loader(),
-      // ✅ UPDATE: এরর প্রিন্ট করার জন্য ব্লক বডি ব্যবহার করা হলো
       error: (e, s) {
         print('🔴 Donation Error: $e');
-        print('Stack Trace: $s'); // কোন লাইন থেকে এরর এসেছে তা দেখাবে
         return Center(child: Text('Error: $e'));
       },
       data: (data) {
@@ -96,10 +103,8 @@ class _InvestmentList extends ConsumerWidget {
 
     return investments.when(
       loading: () => const Loader(),
-      // ✅ UPDATE
       error: (e, s) {
         print('🔴 Investment Error: $e');
-        print('Stack Trace: $s');
         return Center(child: Text('Error: $e'));
       },
       data: (data) {
@@ -137,10 +142,8 @@ class _ActivityList extends ConsumerWidget {
 
     return activities.when(
       loading: () => const Loader(),
-      // ✅ UPDATE
       error: (e, s) {
         print('🔴 Activity Error: $e');
-        print('Stack Trace: $s');
         return Center(child: Text('Error: $e'));
       },
       data: (data) {
@@ -160,6 +163,92 @@ class _ActivityList extends ConsumerWidget {
                 '- ৳${activity.cost}',
                 style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
               ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ✅ NEW: Loan List with Admin Approval Action
+class _LoanList extends ConsumerWidget {
+  final String communityId;
+  const _LoanList({required this.communityId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loans = ref.watch(communityLoansProvider(communityId));
+
+    return loans.when(
+      loading: () => const Loader(),
+      error: (e, s) {
+        print('🔴 Loan Error: $e');
+        print('Stack Trace: $s');
+        return Center(child: Text('Error: $e'));
+      },
+      data: (data) {
+        if (data.isEmpty) return const Center(child: Text('No loan requests.'));
+        return ListView.builder(
+          itemCount: data.length,
+          itemBuilder: (context, index) {
+            final loan = data[index];
+            final isPending = loan.status == 'pending';
+
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isPending ? Colors.orange : Colors.green,
+                child: Icon(
+                  // 🔴 ফিক্স: আগে এখানে Colors ছিল, এখন Icons হবে
+                  isPending ? Icons.hourglass_empty : Icons.check,
+                  color: Colors.white,
+                ),
+              ),
+              title: Text(loan.borrowerName),
+              subtitle: Text(
+                "Status: ${loan.status.toUpperCase()}\nReason: ${loan.reason}",
+                style: TextStyle(
+                  color: isPending ? Colors.orange.shade800 : Colors.grey,
+                  fontWeight: isPending ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              isThreeLine: true,
+              trailing: Text(
+                '৳${loan.amount}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              // ✅ Admin Action: Tap to Approve
+              onTap: isPending
+                  ? () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Approve Loan?'),
+                    content: Text(
+                        'Approve ৳${loan.amount} for ${loan.borrowerName}?\nThis will deduct money from the Community Fund immediately.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.read(loanControllerProvider.notifier).approveLoan(
+                            loan: loan,
+                            context: context,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Approve & Pay'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+                  : null,
             );
           },
         );

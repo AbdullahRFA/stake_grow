@@ -40,4 +40,47 @@ class LoanRepository {
       return loans;
     });
   }
+  // লোন এপ্রুভ করার ACID ট্রানজেকশন
+  // লোন এপ্রুভ করার ACID ট্রানজেকশন (Fixed)
+  FutureEither<void> approveLoan(LoanModel loan) async {
+    try {
+      final communityRef = _firestore.collection('communities').doc(loan.communityId);
+      final loanRef = _firestore.collection('loans').doc(loan.id);
+
+      // 1️⃣ Optimistic Check: ট্রানজেকশন শুরুর আগেই ব্যালেন্স চেক (Web Error Fix)
+      final snapshot = await communityRef.get();
+      if (!snapshot.exists) {
+        return left(Failure("Community not found"));
+      }
+
+      double currentFund = (snapshot.data()?['totalFund'] ?? 0.0).toDouble();
+
+      // যদি টাকা কম থাকে, ট্রানজেকশনে ঢোকার দরকার নেই
+      if (currentFund < loan.amount) {
+        return left(Failure("Insufficient fund! Available: ৳$currentFund"));
+      }
+
+      // 2️⃣ ACID Transaction
+      await _firestore.runTransaction((transaction) async {
+        // ডাবল চেক (Safety First)
+        final freshSnapshot = await transaction.get(communityRef);
+        double freshBalance = (freshSnapshot.data()?['totalFund'] ?? 0.0).toDouble();
+
+        if (freshBalance < loan.amount) {
+          throw Exception("Insufficient fund!");
+        }
+
+        // ফান্ড আপডেট (টাকা কমানো)
+        double newFund = freshBalance - loan.amount;
+        transaction.update(communityRef, {'totalFund': newFund});
+
+        // লোন স্ট্যাটাস আপডেট
+        transaction.update(loanRef, {'status': 'approved'});
+      });
+
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
 }

@@ -64,4 +64,21 @@ class LoanController extends StateNotifier<bool> {
       showSnackBar(context, 'User not logged in');
     }
   }
+  void approveLoan({
+    required LoanModel loan,
+    required BuildContext context,
+  }) async {
+    state = true;
+    // এখানে আমরা ধরে নিচ্ছি UI তে আগেই চেক করা হয়েছে ইউজার এডমিন কিনা
+    final res = await _loanRepository.approveLoan(loan);
+    state = false;
+
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Loan Approved & Fund Disbursed! ✅');
+        Navigator.pop(context); // ডায়ালগ বন্ধ করা
+      },
+    );
+  }
 }
