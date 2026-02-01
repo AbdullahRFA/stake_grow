@@ -2,19 +2,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/donation/data/donation_repository.dart';
+import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/data/loan_repository.dart';
+import 'package:stake_grow/features/loan/domain/loan_model.dart';
 
-// 1. Updated Stats Model
+// 1. Updated Stats Model (With Data Lists)
 class UserStats {
   final double totalDonated;
-  final double contributionPercentage; // (My Total / Community Total)
+  final double contributionPercentage;
   final String loanStatus;
 
-  // New Breakdown Fields
   final double monthlyDonated;
   final double randomDonated;
-  final double monthlyPercent; // (Monthly / My Total)
-  final double randomPercent;  // (Random / My Total)
+  final double monthlyPercent;
+  final double randomPercent;
+
+  // ✅ New Lists for Detail View
+  final List<DonationModel> monthlyList;
+  final List<DonationModel> randomList;
+  final List<LoanModel> loanHistory;
 
   UserStats({
     required this.totalDonated,
@@ -24,6 +30,9 @@ class UserStats {
     required this.randomDonated,
     required this.monthlyPercent,
     required this.randomPercent,
+    required this.monthlyList,
+    required this.randomList,
+    required this.loanHistory,
   });
 }
 
@@ -39,6 +48,9 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       randomDonated: 0,
       monthlyPercent: 0,
       randomPercent: 0,
+      monthlyList: [],
+      randomList: [],
+      loanHistory: [],
     ));
   }
 
@@ -50,26 +62,21 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
 
     // B. Breakdown Calculation
+    final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
+    final randomList = myDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
+
     double myTotal = myDonations.fold(0, (sum, item) => sum + item.amount);
+    double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
+    double randomTotal = randomList.fold(0, (sum, item) => sum + item.amount);
 
-    double monthlyTotal = myDonations
-        .where((d) => d.type == 'Monthly')
-        .fold(0, (sum, item) => sum + item.amount);
-
-    double randomTotal = myDonations
-        .where((d) => d.type == 'Random') // অথবা 'One-time' যা আপনি ব্যবহার করেছেন
-        .fold(0, (sum, item) => sum + item.amount);
-
-    // Percentages of personal total
     double monthlyPct = myTotal == 0 ? 0 : (monthlyTotal / myTotal) * 100;
     double randomPct = myTotal == 0 ? 0 : (randomTotal / myTotal) * 100;
 
-    // Contribution to Community Percentage
     double commPercentage = community.totalFund == 0
         ? 0
         : (myTotal / community.totalFund) * 100;
 
-    // C. Loan Status (Latest Loan)
+    // C. Loan Status & History
     final loansStream = loanRepo.getCommunityLoans(community.id);
     final loans = await loansStream.first;
 
@@ -88,6 +95,9 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       randomDonated: randomTotal,
       monthlyPercent: monthlyPct,
       randomPercent: randomPct,
+      monthlyList: monthlyList,  // ✅ Pass Lists
+      randomList: randomList,    // ✅ Pass Lists
+      loanHistory: myLoans,      // ✅ Pass Lists
     );
   });
 });

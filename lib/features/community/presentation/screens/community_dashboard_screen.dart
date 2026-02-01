@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:stake_grow/core/common/loader.dart'; // লোডার ইম্পোর্ট
+import 'package:intl/intl.dart'; // ✅ DateFormat এর জন্য
+import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
-import 'package:stake_grow/features/community/presentation/user_stats_provider.dart'; // প্রোভাইডার ইম্পোর্ট
+import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
+import 'package:stake_grow/features/donation/domain/donation_model.dart';
+import 'package:stake_grow/features/loan/domain/loan_model.dart';
 
 class CommunityDashboardScreen extends ConsumerWidget {
   final CommunityModel community;
@@ -20,7 +23,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     final currentUser = FirebaseAuth.instance.currentUser;
     final isAdmin = currentUser != null && currentUser.uid == community.adminId;
 
-    // ✅ User Stats Watch করা হচ্ছে
     final statsAsync = ref.watch(userStatsProvider(community));
 
     return Scaffold(
@@ -108,18 +110,22 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // 4. ✅ Subscription Breakdown Card (New Requirement)
-                _buildSubscriptionCard(stats),
+                // 4. Subscription Breakdown Card (Clickable)
+                _buildSubscriptionCard(context, stats),
 
                 const SizedBox(height: 12),
 
-                // 5. Loan Status
+                // 5. Loan Status (Clickable)
                 _buildStatCard(
                   icon: Icons.request_quote,
                   color: _getLoanColor(stats.loanStatus),
                   title: 'Recent Loan Status',
                   value: stats.loanStatus,
-                  subtitle: 'Status of your latest request',
+                  subtitle: 'Tap to see detailed history', // গাইড যোগ করা হলো
+                  onTap: () {
+                    // ✅ Show Loan Details
+                    _showLoanDetails(context, stats.loanHistory);
+                  },
                 ),
 
                 const SizedBox(height: 30),
@@ -133,7 +139,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    // ❌ "My Stats" বাটন রিমুভ করা হয়েছে
                     _buildActionButton(Icons.volunteer_activism, 'Donate', () {
                       context.push('/create-donation', extra: community.id);
                     }),
@@ -160,7 +165,88 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- Helper Widgets ---
+  // --- Helper Methods & Widgets ---
+
+  // ✅ 1. Donation Details Bottom Sheet
+  void _showDonationDetails(BuildContext context, String title, List<DonationModel> donations) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Divider(),
+              Expanded(
+                child: donations.isEmpty
+                    ? const Center(child: Text("No records found."))
+                    : ListView.builder(
+                  itemCount: donations.length,
+                  itemBuilder: (context, index) {
+                    final donation = donations[index];
+                    return ListTile(
+                      leading: const Icon(Icons.check_circle, color: Colors.green),
+                      title: Text('Amount: ৳${donation.amount}'),
+                      subtitle: Text(DateFormat('dd MMM yyyy, hh:mm a').format(donation.timestamp)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ 2. Loan Details Bottom Sheet
+  void _showLoanDetails(BuildContext context, List<LoanModel> loans) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Loan History", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Divider(),
+              Expanded(
+                child: loans.isEmpty
+                    ? const Center(child: Text("No loan history found."))
+                    : ListView.builder(
+                  itemCount: loans.length,
+                  itemBuilder: (context, index) {
+                    final loan = loans[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
+                          child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
+                        ),
+                        title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
+                        subtitle: Text(
+                          'Reason: ${loan.reason}\nRequested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}',
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Color _getLoanColor(String status) {
     switch (status) {
@@ -172,16 +258,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildSubscriptionCard(UserStats stats) {
+  Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
     bool hasMonthly = stats.monthlyDonated > 0;
     bool hasRandom = stats.randomDonated > 0;
 
     if (!hasMonthly && !hasRandom) {
-      return const SizedBox(); // কিছুই না থাকলে হাইড
+      return const SizedBox();
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -193,27 +278,43 @@ class CommunityDashboardScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.purple.withOpacity(0.1),
-                child: const Icon(Icons.pie_chart, color: Colors.purple, size: 24),
-              ),
-              const SizedBox(width: 15),
-              const Text("Donation Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.purple.withOpacity(0.1),
+                  child: const Icon(Icons.pie_chart, color: Colors.purple, size: 24),
+                ),
+                const SizedBox(width: 15),
+                const Text("Donation Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
           ),
-          const SizedBox(height: 15),
 
           if (hasMonthly)
-            _buildBreakdownRow("Monthly Subscription", stats.monthlyDonated, stats.monthlyPercent),
+            InkWell(
+              onTap: () => _showDonationDetails(context, "Monthly Subscriptions", stats.monthlyList),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Monthly Subscription", stats.monthlyDonated, stats.monthlyPercent),
+              ),
+            ),
 
           if (hasMonthly && hasRandom)
-            const Divider(height: 20),
+            const Divider(height: 1),
 
           if (hasRandom)
-            _buildBreakdownRow("One-time / Random", stats.randomDonated, stats.randomPercent),
+            InkWell(
+              onTap: () => _showDonationDetails(context, "Random / One-time Donations", stats.randomList),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("One-time / Random", stats.randomDonated, stats.randomPercent),
+              ),
+            ),
+
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -223,7 +324,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.black87)),
+        Row(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.black87)),
+            const SizedBox(width: 5),
+            const Icon(Icons.info_outline, size: 16, color: Colors.grey), // Hint Icon
+          ],
+        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -241,38 +348,45 @@ class CommunityDashboardScreen extends ConsumerWidget {
     required String title,
     required String value,
     required String subtitle,
+    VoidCallback? onTap, // ✅ onTap parameter added
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
-        ],
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: color.withOpacity(0.1),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                const SizedBox(height: 5),
-                Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 5),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: color)),
-              ],
+    return InkWell( // ✅ InkWell added
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+          ],
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 25,
+              backgroundColor: color.withOpacity(0.1),
+              child: Icon(icon, color: color, size: 28),
             ),
-          ),
-        ],
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                  const SizedBox(height: 5),
+                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: color)),
+                ],
+              ),
+            ),
+            if (onTap != null) // Show arrow if clickable
+              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.withOpacity(0.5)),
+          ],
+        ),
       ),
     );
   }
