@@ -32,7 +32,7 @@ android {
         // minSdk = flutter.minSdkVersion
 
         // 🟢 নতুন লাইন (Firebase এর জন্য অন্তত ২১ লাগবে):
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

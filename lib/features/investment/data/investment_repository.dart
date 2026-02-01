@@ -54,4 +54,15 @@ class InvestmentRepository {
       return left(Failure(e.toString()));
     }
   }
+  // ইনভেস্টমেন্ট লিস্ট দেখার স্ট্রিম
+  Stream<List<InvestmentModel>> getInvestments(String communityId) {
+    return _firestore
+        .collection('investments')
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('startDate', descending: true)
+        .snapshots()
+        .map((event) => event.docs
+        .map((e) => InvestmentModel.fromMap(e.data()))
+        .toList());
+  }
 }

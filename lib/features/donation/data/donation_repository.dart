@@ -41,4 +41,15 @@ class DonationRepository {
       return left(Failure(e.toString()));
     }
   }
+  // কমিউনিটির সব ডোনেশন দেখার স্ট্রিম
+  Stream<List<DonationModel>> getDonations(String communityId) {
+    return _firestore
+        .collection('donations')
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((event) => event.docs
+        .map((e) => DonationModel.fromMap(e.data()))
+        .toList());
+  }
 }

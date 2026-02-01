@@ -48,4 +48,15 @@ class ActivityRepository {
       return left(Failure(e.toString()));
     }
   }
+  // খরচের হিসাব দেখার স্ট্রিম
+  Stream<List<ActivityModel>> getActivities(String communityId) {
+    return _firestore
+        .collection('activities')
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((event) => event.docs
+        .map((e) => ActivityModel.fromMap(e.data()))
+        .toList());
+  }
 }

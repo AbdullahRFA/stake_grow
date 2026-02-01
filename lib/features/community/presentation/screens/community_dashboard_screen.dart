@@ -106,6 +106,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
                   // এক্টিভিটি পেজ
                   context.push('/create-activity', extra: community.id);
                 }),
+                // ... Grid এর ভেতরে নতুন বাটন ...
+                _buildActionButton(Icons.history, 'History', () {
+                  context.push('/transaction-history', extra: community.id);
+                }),
               ],
             ),
           ],
