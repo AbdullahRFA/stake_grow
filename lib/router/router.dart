@@ -98,13 +98,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/join-community',
         builder: (context, state) => const JoinCommunityScreen(),
       ),
-      GoRoute(
-        path: '/user-dashboard',
-        builder: (context, state) {
-          final community = state.extra as CommunityModel;
-          return UserDashboardScreen(community: community);
-        },
-      ),
+      // GoRoute(
+      //   path: '/user-dashboard',
+      //   builder: (context, state) {
+      //     final community = state.extra as CommunityModel;
+      //     return UserDashboardScreen(community: community);
+      //   },
+      // ),
     ],
 
     // ৩. রিডাইরেক্ট লজিক

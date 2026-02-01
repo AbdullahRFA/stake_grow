@@ -4,18 +4,26 @@ import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/donation/data/donation_repository.dart';
 import 'package:stake_grow/features/loan/data/loan_repository.dart';
 
-// 1. Stats Model
+// 1. Updated Stats Model
 class UserStats {
   final double totalDonated;
-  final double contributionPercentage;
+  final double contributionPercentage; // (My Total / Community Total)
   final String loanStatus;
-  final String subscriptionStatus;
+
+  // New Breakdown Fields
+  final double monthlyDonated;
+  final double randomDonated;
+  final double monthlyPercent; // (Monthly / My Total)
+  final double randomPercent;  // (Random / My Total)
 
   UserStats({
     required this.totalDonated,
     required this.contributionPercentage,
     required this.loanStatus,
-    required this.subscriptionStatus,
+    required this.monthlyDonated,
+    required this.randomDonated,
+    required this.monthlyPercent,
+    required this.randomPercent,
   });
 }
 
@@ -27,52 +35,59 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       totalDonated: 0,
       contributionPercentage: 0,
       loanStatus: 'N/A',
-      subscriptionStatus: 'N/A',
+      monthlyDonated: 0,
+      randomDonated: 0,
+      monthlyPercent: 0,
+      randomPercent: 0,
     ));
   }
 
   final donationRepo = ref.watch(donationRepositoryProvider);
   final loanRepo = ref.watch(loanRepositoryProvider);
 
-  // দুটি স্ট্রিমকে কম্বাইন করা (RxDart এর মতো লজিক)
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
-    // A. Donation Calculation
+    // A. My Donations Filter
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
 
+    // B. Breakdown Calculation
     double myTotal = myDonations.fold(0, (sum, item) => sum + item.amount);
 
-    double percentage = community.totalFund == 0
+    double monthlyTotal = myDonations
+        .where((d) => d.type == 'Monthly')
+        .fold(0, (sum, item) => sum + item.amount);
+
+    double randomTotal = myDonations
+        .where((d) => d.type == 'Random') // অথবা 'One-time' যা আপনি ব্যবহার করেছেন
+        .fold(0, (sum, item) => sum + item.amount);
+
+    // Percentages of personal total
+    double monthlyPct = myTotal == 0 ? 0 : (monthlyTotal / myTotal) * 100;
+    double randomPct = myTotal == 0 ? 0 : (randomTotal / myTotal) * 100;
+
+    // Contribution to Community Percentage
+    double commPercentage = community.totalFund == 0
         ? 0
         : (myTotal / community.totalFund) * 100;
 
-    // B. Subscription Status (Monthly Donation Check)
-    final now = DateTime.now();
-    bool isSubscribed = myDonations.any((d) =>
-    d.type == 'Monthly' &&
-        d.timestamp.month == now.month &&
-        d.timestamp.year == now.year
-    );
-    String subStatus = isSubscribed ? "Paid for ${now.month}/${now.year}" : "Due for this month";
-
     // C. Loan Status (Latest Loan)
-    // লোন স্ট্রিম আলাদা, তাই এখানে আমরা ফিউচার ব্যবহার করছি (Stream Combine জটিলতা এড়াতে)
-    // ছোট অ্যাপের জন্য এটি গ্রহণযোগ্য। প্রোডাকশনে CombineLatestStream ব্যবহার করা ভালো।
     final loansStream = loanRepo.getCommunityLoans(community.id);
-    final loans = await loansStream.first; // বর্তমান স্ন্যাপশট নেওয়া
+    final loans = await loansStream.first;
 
     final myLoans = loans.where((l) => l.borrowerId == user.uid).toList();
     String loanStat = "No Active Loans";
 
     if (myLoans.isNotEmpty) {
-      // লেটেস্ট লোন চেক
       loanStat = myLoans.first.status.toUpperCase();
     }
 
     return UserStats(
       totalDonated: myTotal,
-      contributionPercentage: percentage,
+      contributionPercentage: commPercentage,
       loanStatus: loanStat,
-      subscriptionStatus: subStatus,
+      monthlyDonated: monthlyTotal,
+      randomDonated: randomTotal,
+      monthlyPercent: monthlyPct,
+      randomPercent: randomPct,
     );
   });
 });
