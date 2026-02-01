@@ -159,6 +159,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
+                // ✅ NEW BUTTON: My Dashboard
+                _buildActionButton(Icons.person, 'My Stats', () {
+                  context.push('/user-dashboard', extra: community);
+                }),
                 _buildActionButton(Icons.volunteer_activism, 'Donate', () {
                   context.push('/create-donation', extra: community.id);
                 }),

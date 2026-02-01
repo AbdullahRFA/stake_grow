@@ -14,6 +14,7 @@ import 'package:stake_grow/features/community/presentation/screens/community_das
 
 import '../features/community/presentation/screens/join_community_screen.dart';
 import '../features/community/presentation/screens/transaction_history_screen.dart';
+import '../features/community/presentation/screens/user_dashboard_screen.dart';
 import '../features/donation/presentation/screens/create_donation_screen.dart';
 import '../features/investment/presentation/screens/create_investment_screen.dart';
 import '../features/loan/presentation/screens/create_loan_screen.dart';
@@ -96,6 +97,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/join-community',
         builder: (context, state) => const JoinCommunityScreen(),
+      ),
+      GoRoute(
+        path: '/user-dashboard',
+        builder: (context, state) {
+          final community = state.extra as CommunityModel;
+          return UserDashboardScreen(community: community);
+        },
       ),
     ],
 
