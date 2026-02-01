@@ -64,8 +64,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/create-donation',
         builder: (context, state) {
-          final communityId = state.extra as String;
-          return CreateDonationScreen(communityId: communityId);
+          // ✅ UPDATE: Handle Map Argument
+          String communityId;
+          bool isMonthlyDisabled = false;
+
+          if (state.extra is Map<String, dynamic>) {
+            final map = state.extra as Map<String, dynamic>;
+            communityId = map['communityId'];
+            isMonthlyDisabled = map['isMonthlyDisabled'] ?? false;
+          } else {
+            // Fallback for older calls
+            communityId = state.extra as String;
+          }
+
+          return CreateDonationScreen(
+            communityId: communityId,
+            isMonthlyDisabled: isMonthlyDisabled, // ✅ Pass to screen
+          );
         },
       ),
       GoRoute(

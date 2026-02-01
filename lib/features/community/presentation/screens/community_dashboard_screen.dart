@@ -1,3 +1,4 @@
+import 'dart:async'; // ✅ Timer এর জন্য
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -73,13 +74,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // 2. Invite Code (Admin)
+                // ✅ 2. Due/Warning Card with Live Clock
+                DueWarningCard(stats: stats),
+                const SizedBox(height: 16),
+
+                // 3. Invite Code (Admin)
                 if (isAdmin) ...[
                   _buildInviteCard(context, community.inviteCode),
                   const SizedBox(height: 24),
                 ],
 
-                // 3. Contribution Card
+                // 4. Contribution Card
                 const Text("Your Contributions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 12),
                 _buildStatCard(
@@ -91,21 +96,28 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // 4. Subscription Breakdown
+                // 5. Subscription Breakdown
                 _buildSubscriptionCard(context, stats),
                 const SizedBox(height: 12),
 
-                // 5. ✅ Updated Loan Overview Card
+                // 6. Loan Overview Card
                 _buildLoanSummaryCard(context, stats),
                 const SizedBox(height: 30),
 
-                // 6. Quick Actions
+                // 7. Quick Actions
                 const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildActionButton(Icons.volunteer_activism, 'Donate', () { context.push('/create-donation', extra: community.id); }),
+                    // Donate Button
+                    _buildActionButton(Icons.volunteer_activism, 'Donate', () {
+                      context.push('/create-donation', extra: {
+                        'communityId': community.id,
+                        'isMonthlyDisabled': stats.isCurrentMonthPaid,
+                      });
+                    }),
+
                     _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: community.id); }),
                     _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
                       if (isAdmin) { context.push('/create-investment', extra: community.id); }
@@ -127,7 +139,241 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- Helper Methods ---
+  // --- Helper Widgets ---
+
+  Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 28)),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                  const SizedBox(height: 5),
+                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: color)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
+    bool hasMonthly = stats.monthlyDonated > 0;
+    bool hasRandom = stats.randomDonated > 0;
+    if (!hasMonthly && !hasRandom) return const SizedBox();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.purple.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.purple.withOpacity(0.1),
+                  child: const Icon(Icons.pie_chart, color: Colors.purple, size: 24),
+                ),
+                const SizedBox(width: 15),
+                const Text("Donation Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+          ),
+          if (hasMonthly)
+            InkWell(
+              onTap: () => _showDonationDetails(context, "Monthly Subscriptions", stats.monthlyList),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Monthly Subscription", stats.monthlyDonated, "${stats.monthlyPercent.toStringAsFixed(1)}% of total", Colors.black87),
+              ),
+            ),
+          if (hasMonthly && hasRandom) const Divider(height: 1),
+          if (hasRandom)
+            InkWell(
+              onTap: () => _showDonationDetails(context, "Random / One-time", stats.randomList),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("One-time / Random", stats.randomDonated, "${stats.randomPercent.toStringAsFixed(1)}% of total", Colors.black87),
+              ),
+            ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoanSummaryCard(BuildContext context, UserStats stats) {
+    bool hasPending = stats.pendingLoans.isNotEmpty;
+    bool hasActive = stats.activeLoans.isNotEmpty;
+    bool hasRepaid = stats.repaidLoans.isNotEmpty;
+
+    if (!hasPending && !hasActive && !hasRepaid) {
+      return _buildStatCard(
+        icon: Icons.request_quote,
+        color: Colors.grey,
+        title: 'Loan Status',
+        value: 'No History',
+        subtitle: 'You have no loan records yet',
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.indigo.withOpacity(0.1),
+                  child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
+                ),
+                const SizedBox(width: 15),
+                const Text("Loan Overview", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+          ),
+          if (hasActive)
+            InkWell(
+              onTap: () => _showLoanDetails(context, "Active Loans (To be Repaid)", stats.activeLoans),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Active Debt (Unpaid)", stats.activeLoanAmount, "${stats.activeLoans.length} Active", Colors.redAccent),
+              ),
+            ),
+          if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
+          if (hasPending)
+            InkWell(
+              onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Pending Requests", stats.pendingLoans.fold(0, (sum, item) => sum + item.amount), "${stats.pendingLoans.length} Pending", Colors.orange),
+              ),
+            ),
+          if (hasPending && hasRepaid) const Divider(height: 1),
+          if (hasRepaid)
+            InkWell(
+              onTap: () => _showLoanDetails(context, "Repaid History", stats.repaidLoans),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Repaid Loans", stats.repaidLoans.fold(0, (sum, item) => sum + item.amount), "${stats.repaidLoans.length} Repaid", Colors.green),
+              ),
+            ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownRow(String label, double amount, String subLabel, Color labelColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(label, style: TextStyle(color: labelColor, fontWeight: FontWeight.w500)),
+            const SizedBox(width: 5),
+            const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+          ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text("৳ ${amount.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(subLabel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInviteCard(BuildContext context, String code) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Community Invite Code', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 4),
+              Text(code, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
+            ],
+          ),
+          IconButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: code)).then((_) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied! ✅')));
+              });
+            },
+            icon: const Icon(Icons.copy, color: Colors.teal),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
+            ),
+            child: Icon(icon, color: Colors.teal, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  // --- Bottom Sheets ---
 
   void _showDonationDetails(BuildContext context, String title, List<DonationModel> donations) {
     showModalBottomSheet(
@@ -208,264 +454,242 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   Color _getLoanColor(String status) {
     switch (status) {
-      case 'approved': return Colors.redAccent; // Active Debt (Red indicates due)
+      case 'approved': return Colors.redAccent;
       case 'pending': return Colors.orange;
       case 'repaid': return Colors.green;
       default: return Colors.grey;
     }
   }
+}
 
-  // ✅ New Loan Summary Card
-  Widget _buildLoanSummaryCard(BuildContext context, UserStats stats) {
-    bool hasPending = stats.pendingLoans.isNotEmpty;
-    bool hasActive = stats.activeLoans.isNotEmpty;
-    bool hasRepaid = stats.repaidLoans.isNotEmpty;
+// ✅ FIXED: StatefulWidget for Live Clock Countdown
+class DueWarningCard extends StatefulWidget {
+  final UserStats stats;
+  const DueWarningCard({super.key, required this.stats});
 
-    if (!hasPending && !hasActive && !hasRepaid) {
-      return _buildStatCard(
-        icon: Icons.request_quote,
-        color: Colors.grey,
-        title: 'Loan Status',
-        value: 'No History',
-        subtitle: 'You have no loan records yet',
-      );
+  @override
+  State<DueWarningCard> createState() => _DueWarningCardState();
+}
+
+class _DueWarningCardState extends State<DueWarningCard> {
+  Timer? _timer;
+  String _timeDisplayString = "Loading..."; // UI তে দেখানোর জন্য স্ট্রিং
+  late DateTime _targetDate;
+  bool _isOverdue = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTimerState();
+    _startTimer();
+  }
+
+  // যদি প্যারেন্ট উইজেট থেকে stats আপডেট হয় (যেমন পেমেন্ট করার পর), তখন টার্গেট ডেট আপডেট করতে হবে
+  @override
+  void didUpdateWidget(covariant DueWarningCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.stats.isCurrentMonthPaid != widget.stats.isCurrentMonthPaid) {
+      _setupTimerState();
     }
+  }
+
+  void _setupTimerState() {
+    final now = DateTime.now();
+    if (widget.stats.isCurrentMonthPaid) {
+      // Target: Next Month's 1st
+      _targetDate = DateTime(now.year, now.month + 1, 1);
+    } else {
+      // Target: This Month's 15th
+      _targetDate = DateTime(now.year, now.month, 15, 23, 59, 59);
+    }
+    _updateTime(); // ইনিশিয়াল আপডেট
+  }
+
+  void _startTimer() {
+    _timer?.cancel(); // আগের টাইমার থাকলে বন্ধ করুন
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _updateTime();
+      }
+    });
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final difference = _targetDate.difference(now);
+
+    if (difference.isNegative) {
+      // Overdue or Cycle passed
+      if (mounted) {
+        setState(() {
+          _isOverdue = true;
+          _timeDisplayString = "00 Year 00 Month 00 Days 00 Hours 00 Min 00 Sec";
+        });
+      }
+    } else {
+      // Calculate Detailed Breakdown
+      String formattedTime = _calculateDetailedBreakdown(_targetDate, now);
+
+      if (mounted) {
+        setState(() {
+          _isOverdue = false;
+          _timeDisplayString = formattedTime;
+        });
+      }
+    }
+  }
+
+  // ম্যানুয়াল ক্যালকুলেশন যাতে বছর, মাস, দিন সঠিক দেখায়
+  String _calculateDetailedBreakdown(DateTime target, DateTime now) {
+    int years = target.year - now.year;
+    int months = target.month - now.month;
+    int days = target.day - now.day;
+    int hours = target.hour - now.hour;
+    int minutes = target.minute - now.minute;
+    int seconds = target.second - now.second;
+
+    if (seconds < 0) { seconds += 60; minutes--; }
+    if (minutes < 0) { minutes += 60; hours--; }
+    if (hours < 0) { hours += 24; days--; }
+    if (days < 0) {
+      // আগের মাসের মোট দিন বের করা
+      final prevMonth = DateTime(target.year, target.month - 1);
+      final daysInPrevMonth = DateTime(prevMonth.year, prevMonth.month + 1, 0).day;
+      days += daysInPrevMonth;
+      months--;
+    }
+    if (months < 0) { months += 12; years--; }
+
+    // সুন্দর ফরম্যাটিং (সিঙ্গেল ডিজিট হলে আগে ০ যোগ করা)
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+
+    // লজিক: যদি বছর বা মাস ০ হয়, তবে সেটা দেখানো জরুরি না হলে বাদ দিতে পারেন,
+    // কিন্তু আপনার রিকোয়ারমেন্ট অনুযায়ী সব দেখানো হলো।
+    return "$years Year $months Month $days Days ${twoDigits(hours)} Hours ${twoDigits(minutes)} Min ${twoDigits(seconds)} Sec";
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isPaid = widget.stats.isCurrentMonthPaid;
+
+    // UI Colors & Styles
+    final Color bgColor = isPaid ? Colors.green.shade50 : (_isOverdue ? Colors.red.shade50 : Colors.orange.shade50);
+    final Color borderColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
+    final Color textColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
 
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.indigo.withOpacity(0.1),
-                  child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
-                ),
-                const SizedBox(width: 15),
-                const Text("Loan Overview", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
+          Icon(
+            isPaid ? Icons.check_circle : (_isOverdue ? Icons.warning_amber_rounded : Icons.access_time_filled),
+            color: textColor,
+            size: 40,
+          ),
+          const SizedBox(height: 10),
+
+          Text(
+            isPaid
+                ? "Current Month Payment Complete! 🎉"
+                : (_isOverdue ? "Payment Overdue!" : "Monthly Payment Due"),
+            style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 18),
           ),
 
-          if (hasActive)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Active Loans (To be Repaid)", stats.activeLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow(
-                    "Active Debt (Unpaid)",
-                    stats.activeLoanAmount,
-                    "${stats.activeLoans.length} Active",
-                    Colors.redAccent
-                ),
-              ),
-            ),
+          const SizedBox(height: 5),
 
-          if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
-
-          if (hasPending)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow(
-                    "Pending Requests",
-                    stats.pendingLoans.fold(0, (sum, item) => sum + item.amount),
-                    "${stats.pendingLoans.length} Pending",
-                    Colors.orange
-                ),
-              ),
-            ),
-
-          if (hasPending && hasRepaid) const Divider(height: 1),
-
-          if (hasRepaid)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Repaid History", stats.repaidLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow(
-                    "Repaid Loans",
-                    stats.repaidLoans.fold(0, (sum, item) => sum + item.amount),
-                    "${stats.repaidLoans.length} Repaid",
-                    Colors.green
-                ),
-              ),
-            ),
+          if (!isPaid && !_isOverdue)
+            const Text("Target: 15th of this month", style: TextStyle(color: Colors.grey)),
 
           const SizedBox(height: 10),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
-    // ... (Previous implementation remains same)
-    bool hasMonthly = stats.monthlyDonated > 0;
-    bool hasRandom = stats.randomDonated > 0;
-    if (!hasMonthly && !hasRandom) return const SizedBox();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.purple.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.purple.withOpacity(0.1),
-                  child: const Icon(Icons.pie_chart, color: Colors.purple, size: 24),
+          // ✅ Live Countdown Clock Display
+          if (!isPaid && _isOverdue)
+            const Text("Please Pay ASAP with Penalty", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderColor.withOpacity(0.5)),
+              ),
+              child: Text(
+                _timeDisplayString, // ✅ This variable updates every second
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  fontFeatures: const [FontFeature.tabularFigures()], // নাম্বার ফিক্সড উইডথ রাখবে যাতে কাঁপা বন্ধ হয়
                 ),
-                const SizedBox(width: 15),
-                const Text("Donation Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
-          ),
-          if (hasMonthly)
-            InkWell(
-              onTap: () => _showDonationDetails(context, "Monthly Subscriptions", stats.monthlyList),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Monthly Subscription", stats.monthlyDonated, "${stats.monthlyPercent.toStringAsFixed(1)}% of total", Colors.black87),
               ),
             ),
-          if (hasMonthly && hasRandom) const Divider(height: 1),
-          if (hasRandom)
-            InkWell(
-              onTap: () => _showDonationDetails(context, "Random / One-time", stats.randomList),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("One-time / Random", stats.randomDonated, "${stats.randomPercent.toStringAsFixed(1)}% of total", Colors.black87),
-              ),
+
+          if (isPaid)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text("Next cycle starts in:", style: TextStyle(color: Colors.green.shade800)),
             ),
-          const SizedBox(height: 10),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildBreakdownRow(String label, double amount, String subLabel, Color labelColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Text(label, style: TextStyle(color: labelColor, fontWeight: FontWeight.w500)),
-            const SizedBox(width: 5),
-            const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text("৳ ${amount.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(subLabel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-          ],
-        ),
-      ],
-    );
-  }
+          if (!isPaid) ...[
+            const SizedBox(height: 15),
+            const Divider(),
+            const SizedBox(height: 10),
 
-  Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 28)),
-            const SizedBox(width: 20),
-            Expanded(
+            // Rules
+            Container(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                  const SizedBox(height: 5),
-                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 5),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: color)),
+                  const Text("যদি কোনো সদস্য সময়মতো পেমেন্ট করতে ব্যর্থ হয়:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  _buildRuleRow("১৬–২০ তারিখের মধ্যে:", "মূল টাকার সাথে ৫% জরিমানা।"),
+                  _buildRuleRow("২০ তারিখের পর:", "পরবর্তী মাসের সাথে ১০% জরিমানা সহ।"),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // _buildInviteCard and _buildActionButton remains same...
-  Widget _buildInviteCard(BuildContext context, String code) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Community Invite Code', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 4),
-              Text(code, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
-            ],
-          ),
-          IconButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: code)).then((_) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied! ✅')));
-              });
-            },
-            icon: const Icon(Icons.copy, color: Colors.teal),
-          ),
+          ]
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
+  Widget _buildRuleRow(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
+          const Text("▶ ", style: TextStyle(color: Colors.red, fontSize: 12)),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(color: Colors.black87, fontSize: 12, height: 1.4),
+                children: [
+                  TextSpan(text: "$title ", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: desc),
+                ],
+              ),
             ),
-            child: Icon(icon, color: Colors.teal, size: 28),
           ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );

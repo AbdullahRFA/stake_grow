@@ -5,7 +5,13 @@ import 'package:stake_grow/features/donation/presentation/donation_controller.da
 
 class CreateDonationScreen extends ConsumerStatefulWidget {
   final String communityId;
-  const CreateDonationScreen({super.key, required this.communityId});
+  final bool isMonthlyDisabled; // ✅ NEW PARAMETER
+
+  const CreateDonationScreen({
+    super.key,
+    required this.communityId,
+    this.isMonthlyDisabled = false, // Default false
+  });
 
   @override
   ConsumerState<ConsumerStatefulWidget> createState() => _CreateDonationScreenState();
@@ -13,7 +19,16 @@ class CreateDonationScreen extends ConsumerStatefulWidget {
 
 class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
   final amountController = TextEditingController();
-  String selectedType = 'Random'; // Default
+  String selectedType = 'Random';
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ যদি Monthly ডিজেবল না থাকে, তাহলে ডিফল্ট Monthly সেট করি
+    if (!widget.isMonthlyDisabled) {
+      selectedType = 'Monthly';
+    }
+  }
 
   @override
   void dispose() {
@@ -22,14 +37,9 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
   }
 
   void donate() {
-    print("Donate button pressed"); // 1. বাটন চাপলে এটা কনসোলে আসবে
-
     if (amountController.text.isNotEmpty) {
       final amount = double.tryParse(amountController.text.trim());
-
       if (amount != null && amount > 0) {
-        print("Valid amount: $amount. Calling controller..."); // 2. ভ্যালিডেশন পাস
-
         ref.read(donationControllerProvider.notifier).makeDonation(
           communityId: widget.communityId,
           amount: amount,
@@ -37,21 +47,26 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
           context: context,
         );
       } else {
-        print("Invalid amount entered"); // 3. ভুল এমাউন্ট
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter a valid amount greater than 0')),
         );
       }
     } else {
-      print("Amount field is empty"); // 4. খালি ফিল্ড
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Amount cannot be empty')),
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(donationControllerProvider);
+
+    // ✅ Dropdown Items Filter Logic
+    List<String> donationTypes = ['Monthly', 'Random'];
+    if (widget.isMonthlyDisabled) {
+      donationTypes.remove('Monthly');
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Make a Donation')),
@@ -82,7 +97,7 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
                 labelText: 'Donation Type',
                 border: OutlineInputBorder(),
               ),
-              items: ['Monthly', 'Random']
+              items: donationTypes
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                   .toList(),
               onChanged: (val) {
@@ -91,6 +106,31 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
                 });
               },
             ),
+
+            // ✅ Message if Monthly is disabled
+            if (widget.isMonthlyDisabled)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  border: Border.all(color: Colors.green),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Monthly donation for this month is already completed! You can still make random donations.",
+                        style: TextStyle(color: Colors.green, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,

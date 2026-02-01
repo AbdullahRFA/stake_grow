@@ -19,11 +19,14 @@ class UserStats {
   final List<DonationModel> monthlyList;
   final List<DonationModel> randomList;
 
-  // ✅ New Loan Stats (Categorized)
+  // Loan Stats
   final List<LoanModel> pendingLoans;
-  final List<LoanModel> activeLoans; // Approved but not repaid
+  final List<LoanModel> activeLoans;
   final List<LoanModel> repaidLoans;
-  final double activeLoanAmount; // Total money currently borrowed
+  final double activeLoanAmount;
+
+  // ✅ NEW FIELD: চলতি মাসের পেমেন্ট স্ট্যাটাস
+  final bool isCurrentMonthPaid;
 
   UserStats({
     required this.totalDonated,
@@ -38,6 +41,7 @@ class UserStats {
     required this.activeLoans,
     required this.repaidLoans,
     required this.activeLoanAmount,
+    required this.isCurrentMonthPaid, // ✅
   });
 }
 
@@ -45,7 +49,6 @@ class UserStats {
 final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref, community) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    // Default Empty State
     return Stream.value(UserStats(
       totalDonated: 0,
       contributionPercentage: 0,
@@ -59,6 +62,7 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       activeLoans: [],
       repaidLoans: [],
       activeLoanAmount: 0,
+      isCurrentMonthPaid: false, // Default
     ));
   }
 
@@ -66,10 +70,17 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
   final loanRepo = ref.watch(loanRepositoryProvider);
 
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
-    // --- Donation Logic ---
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
+
+    // --- Donation Logic ---
     final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
     final randomList = myDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
+
+    // ✅ Check Current Month Payment Logic
+    final now = DateTime.now();
+    bool isPaid = monthlyList.any((d) =>
+    d.timestamp.month == now.month && d.timestamp.year == now.year
+    );
 
     double myTotal = myDonations.fold(0, (sum, item) => sum + item.amount);
     double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
@@ -79,17 +90,14 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
     double randomPct = myTotal == 0 ? 0 : (randomTotal / myTotal) * 100;
     double commPercentage = community.totalFund == 0 ? 0 : (myTotal / community.totalFund) * 100;
 
-    // --- ✅ Loan Logic (Updated) ---
+    // --- Loan Logic ---
     final loansStream = loanRepo.getCommunityLoans(community.id);
     final loans = await loansStream.first;
     final myLoans = loans.where((l) => l.borrowerId == user.uid).toList();
 
-    // Categorize Loans
     final pending = myLoans.where((l) => l.status == 'pending').toList();
     final active = myLoans.where((l) => l.status == 'approved').toList();
     final repaid = myLoans.where((l) => l.status == 'repaid').toList();
-
-    // Calculate Active Debt
     double activeDebt = active.fold(0, (sum, item) => sum + item.amount);
 
     return UserStats(
@@ -105,6 +113,7 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       activeLoans: active,
       repaidLoans: repaid,
       activeLoanAmount: activeDebt,
+      isCurrentMonthPaid: isPaid, // ✅
     );
   });
 });
