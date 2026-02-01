@@ -12,6 +12,7 @@ import '../features/community/presentation/screens/create_community_screen.dart'
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/screens/community_dashboard_screen.dart';
 
+import '../features/community/presentation/screens/join_community_screen.dart';
 import '../features/community/presentation/screens/transaction_history_screen.dart';
 import '../features/donation/presentation/screens/create_donation_screen.dart';
 import '../features/investment/presentation/screens/create_investment_screen.dart';
@@ -91,6 +92,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           final communityId = state.extra as String;
           return TransactionHistoryScreen(communityId: communityId);
         },
+      ),
+      GoRoute(
+        path: '/join-community',
+        builder: (context, state) => const JoinCommunityScreen(),
       ),
     ],
 

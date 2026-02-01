@@ -77,4 +77,27 @@ class CommunityController extends StateNotifier<bool> {
 
 // আগের getUserCommunities ফাংশনটি এখন আর এখানে দরকার নেই,
 // কারণ আমরা সরাসরি প্রভাইডারের ভেতরেই লজিক লিখে দিয়েছি।
+
+
+// ✅ NEW: Join Function
+  void joinCommunity(String inviteCode, BuildContext context) async {
+    state = true;
+    final user = _ref.read(authStateChangeProvider).value;
+
+    if (user != null) {
+      final res = await _communityRepository.joinCommunity(inviteCode, user.uid);
+      state = false;
+
+      res.fold(
+            (l) => showSnackBar(context, l.message),
+            (r) {
+          showSnackBar(context, 'Joined Community Successfully! 🎉');
+          Navigator.pop(context); // সফল হলে স্ক্রিন বন্ধ হবে
+        },
+      );
+    } else {
+      state = false;
+      showSnackBar(context, 'User not logged in!');
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ কপি করার জন্য লাগবে
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
@@ -61,7 +62,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 10),
                   Text(
                     '৳ ${community.totalFund.toStringAsFixed(2)}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
@@ -84,29 +85,87 @@ class CommunityDashboardScreen extends ConsumerWidget {
               ),
             ),
 
+            const SizedBox(height: 16), // একটু গ্যাপ
+
+            // ✅ 2. Invite Code Section (NEW)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Community Invite Code',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        community.inviteCode, // ইনভাইট কোড
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          letterSpacing: 2.0, // কোডটি ফাঁকা ফাঁকা দেখাবে
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      // ক্লিপবোর্ডে কপি করার লজিক
+                      Clipboard.setData(ClipboardData(text: community.inviteCode)).then((_) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Invite code copied to clipboard! ✅'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      });
+                    },
+                    icon: const Icon(Icons.copy, color: Colors.teal),
+                    tooltip: 'Copy Code',
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 24),
 
-            // 2. Quick Actions Grid
+            // 3. Quick Actions Grid
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildActionButton(Icons.volunteer_activism, 'Donate', () {
-                  // ডোনেশন পেজ (Phase 7)
                   context.push('/create-donation', extra: community.id);
                 }),
                 _buildActionButton(Icons.request_quote, 'Loan', () {
-                  // লোন পেজ
                   context.push('/create-loan', extra: community.id);
                 }),
                 _buildActionButton(Icons.bar_chart, 'Invest', () {
-                  // ইনভেস্টমেন্ট পেজ
                   context.push('/create-investment', extra: community.id);
                 }),
                 _buildActionButton(Icons.event, 'Activity', () {
-                  // এক্টিভিটি পেজ
                   context.push('/create-activity', extra: community.id);
                 }),
-                // ... Grid এর ভেতরে নতুন বাটন ...
                 _buildActionButton(Icons.history, 'History', () {
                   context.push('/transaction-history', extra: community.id);
                 }),

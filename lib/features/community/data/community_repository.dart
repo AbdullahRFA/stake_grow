@@ -58,4 +58,45 @@ class CommunityRepository {
       return communities;
     });
   }
+
+// ✅ NEW: ইনভাইট কোড দিয়ে কমিউনিটিতে জয়েন করা
+  FutureEither<void> joinCommunity(String inviteCode, String userId) async {
+    try {
+      // ১. ইনভাইট কোড দিয়ে কমিউনিটি খোঁজা
+      final querySnapshot = await _firestore
+          .collection('communities')
+          .where('inviteCode', isEqualTo: inviteCode)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return left(Failure('Invalid Invite Code! Community not found.'));
+      }
+
+      final communityDoc = querySnapshot.docs.first;
+      final communityId = communityDoc.id;
+      final members = List<String>.from(communityDoc.data()['members']);
+
+      // ২. ইউজার কি অলরেডি মেম্বার?
+      if (members.contains(userId)) {
+        return left(Failure('You are already a member of this community!'));
+      }
+
+      // ৩. ACID Transaction: মেম্বার লিস্ট আপডেট করা
+      await _firestore.runTransaction((transaction) async {
+        // কমিউনিটির মেম্বার লিস্টে ইউজারকে যোগ করো
+        transaction.update(communityDoc.reference, {
+          'members': FieldValue.arrayUnion([userId]),
+        });
+
+        // ইউজারের প্রোফাইলে কমিউনিটি আইডি যোগ করো
+        transaction.update(_firestore.collection('users').doc(userId), {
+          'joinedCommunities': FieldValue.arrayUnion([communityId]),
+        });
+      });
+
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
 }

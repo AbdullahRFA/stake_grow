@@ -62,7 +62,49 @@ class HomeScreen extends ConsumerWidget {
       ),
 
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/create-community'),
+        onPressed: () {
+          // Bottom Sheet দেখানো হবে
+          showModalBottomSheet(
+            context: context,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (context) {
+              return Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'What do you want to do?',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+                    ListTile(
+                      leading: const Icon(Icons.add_circle, color: Colors.teal, size: 30),
+                      title: const Text('Create New Community'),
+                      subtitle: const Text('Become an admin of a new fund'),
+                      onTap: () {
+                        Navigator.pop(context); // বন্ধ করো
+                        context.push('/create-community');
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.group_add, color: Colors.blueAccent, size: 30),
+                      title: const Text('Join Existing Community'),
+                      subtitle: const Text('Enter an invite code to join'),
+                      onTap: () {
+                        Navigator.pop(context); // বন্ধ করো
+                        context.push('/join-community');
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
         child: const Icon(Icons.add),
       ),
     );
