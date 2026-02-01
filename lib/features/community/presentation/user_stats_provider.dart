@@ -6,33 +6,38 @@ import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/data/loan_repository.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 
-// 1. Updated Stats Model (With Data Lists)
+// 1. Updated Stats Model
 class UserStats {
   final double totalDonated;
   final double contributionPercentage;
-  final String loanStatus;
 
+  // Donation Stats
   final double monthlyDonated;
   final double randomDonated;
   final double monthlyPercent;
   final double randomPercent;
-
-  // ✅ New Lists for Detail View
   final List<DonationModel> monthlyList;
   final List<DonationModel> randomList;
-  final List<LoanModel> loanHistory;
+
+  // ✅ New Loan Stats (Categorized)
+  final List<LoanModel> pendingLoans;
+  final List<LoanModel> activeLoans; // Approved but not repaid
+  final List<LoanModel> repaidLoans;
+  final double activeLoanAmount; // Total money currently borrowed
 
   UserStats({
     required this.totalDonated,
     required this.contributionPercentage,
-    required this.loanStatus,
     required this.monthlyDonated,
     required this.randomDonated,
     required this.monthlyPercent,
     required this.randomPercent,
     required this.monthlyList,
     required this.randomList,
-    required this.loanHistory,
+    required this.pendingLoans,
+    required this.activeLoans,
+    required this.repaidLoans,
+    required this.activeLoanAmount,
   });
 }
 
@@ -40,17 +45,20 @@ class UserStats {
 final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref, community) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
+    // Default Empty State
     return Stream.value(UserStats(
       totalDonated: 0,
       contributionPercentage: 0,
-      loanStatus: 'N/A',
       monthlyDonated: 0,
       randomDonated: 0,
       monthlyPercent: 0,
       randomPercent: 0,
       monthlyList: [],
       randomList: [],
-      loanHistory: [],
+      pendingLoans: [],
+      activeLoans: [],
+      repaidLoans: [],
+      activeLoanAmount: 0,
     ));
   }
 
@@ -58,10 +66,8 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
   final loanRepo = ref.watch(loanRepositoryProvider);
 
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
-    // A. My Donations Filter
+    // --- Donation Logic ---
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
-
-    // B. Breakdown Calculation
     final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
     final randomList = myDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
 
@@ -71,33 +77,34 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
 
     double monthlyPct = myTotal == 0 ? 0 : (monthlyTotal / myTotal) * 100;
     double randomPct = myTotal == 0 ? 0 : (randomTotal / myTotal) * 100;
+    double commPercentage = community.totalFund == 0 ? 0 : (myTotal / community.totalFund) * 100;
 
-    double commPercentage = community.totalFund == 0
-        ? 0
-        : (myTotal / community.totalFund) * 100;
-
-    // C. Loan Status & History
+    // --- ✅ Loan Logic (Updated) ---
     final loansStream = loanRepo.getCommunityLoans(community.id);
     final loans = await loansStream.first;
-
     final myLoans = loans.where((l) => l.borrowerId == user.uid).toList();
-    String loanStat = "No Active Loans";
 
-    if (myLoans.isNotEmpty) {
-      loanStat = myLoans.first.status.toUpperCase();
-    }
+    // Categorize Loans
+    final pending = myLoans.where((l) => l.status == 'pending').toList();
+    final active = myLoans.where((l) => l.status == 'approved').toList();
+    final repaid = myLoans.where((l) => l.status == 'repaid').toList();
+
+    // Calculate Active Debt
+    double activeDebt = active.fold(0, (sum, item) => sum + item.amount);
 
     return UserStats(
       totalDonated: myTotal,
       contributionPercentage: commPercentage,
-      loanStatus: loanStat,
       monthlyDonated: monthlyTotal,
       randomDonated: randomTotal,
       monthlyPercent: monthlyPct,
       randomPercent: randomPct,
-      monthlyList: monthlyList,  // ✅ Pass Lists
-      randomList: randomList,    // ✅ Pass Lists
-      loanHistory: myLoans,      // ✅ Pass Lists
+      monthlyList: monthlyList,
+      randomList: randomList,
+      pendingLoans: pending,
+      activeLoans: active,
+      repaidLoans: repaid,
+      activeLoanAmount: activeDebt,
     );
   });
 });
