@@ -3,28 +3,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
-// ✅ Import Loan Features
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 
 class TransactionHistoryScreen extends ConsumerWidget {
   final String communityId;
-  const TransactionHistoryScreen({super.key, required this.communityId});
+  final int initialIndex; // ✅ NEW: নির্দিষ্ট ট্যাব খোলার জন্য
+
+  const TransactionHistoryScreen({
+    super.key,
+    required this.communityId,
+    this.initialIndex = 0, // ডিফল্ট 0 (Donations)
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4, // ✅ UPDATE: এখন ৪টি ট্যাব (Donation, Investment, Expense, Loans)
+      length: 4,
+      initialIndex: initialIndex, // ✅ এখানে ব্যবহার করা হলো
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Transparency & History'),
           bottom: const TabBar(
-            isScrollable: true, // ছোট স্ক্রিনে ট্যাবগুলো যেন এঁটে যায়
+            isScrollable: true,
             tabs: [
               Tab(text: 'Donations', icon: Icon(Icons.volunteer_activism)),
               Tab(text: 'Investments', icon: Icon(Icons.trending_up)),
               Tab(text: 'Expenses', icon: Icon(Icons.money_off)),
-              // ✅ New Tab
               Tab(text: 'Loans', icon: Icon(Icons.request_quote)),
             ],
             labelColor: Colors.teal,
@@ -34,16 +39,9 @@ class TransactionHistoryScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: [
-            // Tab 1: Donations List
             _DonationList(communityId: communityId),
-
-            // Tab 2: Investments List
             _InvestmentList(communityId: communityId),
-
-            // Tab 3: Activities (Expenses) List
             _ActivityList(communityId: communityId),
-
-            // ✅ Tab 4: Loans List (With Admin Approval)
             _LoanList(communityId: communityId),
           ],
         ),
@@ -51,7 +49,6 @@ class TransactionHistoryScreen extends ConsumerWidget {
     );
   }
 }
-
 // ---------------- Sub Widgets ----------------
 
 class _DonationList extends ConsumerWidget {

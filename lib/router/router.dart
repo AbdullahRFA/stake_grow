@@ -7,11 +7,13 @@ import 'package:stake_grow/features/auth/presentation/screens/signup_screen.dart
 import 'package:stake_grow/features/community/presentation/screens/home_screen.dart';
 
 import '../features/activity/presentation/screens/create_activity_screen.dart';
+import '../features/community/presentation/screens/activity_history_screen.dart';
 import '../features/community/presentation/screens/create_community_screen.dart';
 
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/screens/community_dashboard_screen.dart';
 
+import '../features/community/presentation/screens/investment_history_screen.dart';
 import '../features/community/presentation/screens/join_community_screen.dart';
 import '../features/community/presentation/screens/transaction_history_screen.dart';
 import '../features/community/presentation/screens/user_dashboard_screen.dart';
@@ -90,13 +92,42 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/transaction-history',
         builder: (context, state) {
-          final communityId = state.extra as String;
-          return TransactionHistoryScreen(communityId: communityId);
+          // ✅ UPDATE: স্ট্রিং বা ম্যাপ দুই ধরনের আর্গুমেন্ট হ্যান্ডেল করা
+          String communityId;
+          int initialIndex = 0;
+
+          if (state.extra is Map<String, dynamic>) {
+            final map = state.extra as Map<String, dynamic>;
+            communityId = map['communityId'];
+            initialIndex = map['initialIndex'] ?? 0;
+          } else {
+            // যদি পুরনো নিয়মে শুধু স্ট্রিং আসে
+            communityId = state.extra as String;
+          }
+
+          return TransactionHistoryScreen(
+            communityId: communityId,
+            initialIndex: initialIndex,
+          );
         },
       ),
       GoRoute(
         path: '/join-community',
         builder: (context, state) => const JoinCommunityScreen(),
+      ),
+      GoRoute(
+        path: '/investment-history',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return InvestmentHistoryScreen(communityId: communityId);
+        },
+      ),
+      GoRoute(
+        path: '/activity-history',
+        builder: (context, state) {
+          final communityId = state.extra as String;
+          return ActivityHistoryScreen(communityId: communityId);
+        },
       ),
       // GoRoute(
       //   path: '/user-dashboard',

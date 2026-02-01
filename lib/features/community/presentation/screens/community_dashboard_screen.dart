@@ -139,21 +139,43 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
+                    // 1. Donate (Common)
                     _buildActionButton(Icons.volunteer_activism, 'Donate', () {
                       context.push('/create-donation', extra: community.id);
                     }),
+
+                    // 2. Loan (Common)
                     _buildActionButton(Icons.request_quote, 'Loan', () {
                       context.push('/create-loan', extra: community.id);
                     }),
-                    _buildActionButton(Icons.bar_chart, 'Invest', () {
-                      context.push('/create-investment', extra: community.id);
+
+                    // 3. Invest (Modified Logic)
+                    _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
+                      if (isAdmin) {
+                        // Admin: নতুন ইনভেস্টমেন্ট তৈরি করবে
+                        context.push('/create-investment', extra: community.id);
+                      } else {
+                        // ✅ User: শুধুমাত্র ইনভেস্টমেন্ট লিস্ট পেজে যাবে
+                        context.push('/investment-history', extra: community.id);
+                      }
                     }),
-                    _buildActionButton(Icons.event, 'Activity', () {
-                      context.push('/create-activity', extra: community.id);
+
+                    // 4. Activity (Modified Logic)
+                    _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
+                      if (isAdmin) {
+                        // Admin: নতুন অ্যাক্টিভিটি তৈরি করবে
+                        context.push('/create-activity', extra: community.id);
+                      } else {
+                        // ✅ User: শুধুমাত্র অ্যাক্টিভিটি লিস্ট পেজে যাবে
+                        context.push('/activity-history', extra: community.id);
+                      }
                     }),
-                    _buildActionButton(Icons.history, 'History', () {
-                      context.push('/transaction-history', extra: community.id);
-                    }),
+
+                    // 5. History (Only Admin sees Full History)
+                    if (isAdmin)
+                      _buildActionButton(Icons.history, 'History', () {
+                        context.push('/transaction-history', extra: community.id);
+                      }),
                   ],
                 ),
                 const SizedBox(height: 20),
