@@ -83,4 +83,30 @@ class LoanRepository {
       return left(Failure(e.toString()));
     }
   }
+  // ✅ NEW: লোন পরিশোধ বা Repayment ফাংশন
+  FutureEither<void> repayLoan(LoanModel loan) async {
+    try {
+      final communityRef = _firestore.collection('communities').doc(loan.communityId);
+      final loanRef = _firestore.collection('loans').doc(loan.id);
+
+      await _firestore.runTransaction((transaction) async {
+        // ১. বর্তমান ফান্ড চেক করা
+        final communityDoc = await transaction.get(communityRef);
+        if (!communityDoc.exists) throw Exception("Community not found");
+
+        double currentFund = (communityDoc.data()?['totalFund'] ?? 0.0).toDouble();
+
+        // ২. ফান্ড আপডেট (টাকা ফেরত আসায় ফান্ড বাড়বে)
+        double newFund = currentFund + loan.amount;
+        transaction.update(communityRef, {'totalFund': newFund});
+
+        // ৩. লোন স্ট্যাটাস আপডেট (Repaid)
+        transaction.update(loanRef, {'status': 'repaid'});
+      });
+
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
 }

@@ -1,5 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart'; // ✅ ইম্পোর্ট করা হলো
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ কপি করার জন্য লাগবে
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
@@ -14,6 +15,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ✅ ১. চেক করা ইউজার এডমিন কিনা
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isAdmin = currentUser != null && currentUser.uid == community.adminId;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(community.name),
@@ -21,7 +26,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
         actions: [
           IconButton(
             onPressed: () {
-              // সেটিংস পেজে যাওয়ার কোড পরে হবে
+              // সেটিংস পেজে যাওয়ার কোড
             },
             icon: const Icon(Icons.settings),
           ),
@@ -85,70 +90,70 @@ class CommunityDashboardScreen extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(height: 16), // একটু গ্যাপ
+            const SizedBox(height: 16),
 
-            // ✅ 2. Invite Code Section (NEW)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.grey.shade300),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Community Invite Code',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        community.inviteCode, // ইনভাইট কোড
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          letterSpacing: 2.0, // কোডটি ফাঁকা ফাঁকা দেখাবে
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      // ক্লিপবোর্ডে কপি করার লজিক
-                      Clipboard.setData(ClipboardData(text: community.inviteCode)).then((_) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Invite code copied to clipboard! ✅'),
-                            behavior: SnackBarBehavior.floating,
-                            duration: Duration(seconds: 2),
+            // ✅ 2. Invite Code Section (ONLY FOR ADMIN)
+            if (isAdmin) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Community Invite Code',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
-                        );
-                      });
-                    },
-                    icon: const Icon(Icons.copy, color: Colors.teal),
-                    tooltip: 'Copy Code',
-                  ),
-                ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          community.inviteCode,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: community.inviteCode)).then((_) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Invite code copied to clipboard! ✅'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.copy, color: Colors.teal),
+                      tooltip: 'Copy Code',
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
+            ],
 
             // 3. Quick Actions Grid
             Row(
@@ -177,7 +182,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // বাটন বানানোর হেল্পার উইজেট
   Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,

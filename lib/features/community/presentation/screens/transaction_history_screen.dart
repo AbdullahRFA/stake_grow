@@ -183,8 +183,6 @@ class _LoanList extends ConsumerWidget {
     return loans.when(
       loading: () => const Loader(),
       error: (e, s) {
-        print('🔴 Loan Error: $e');
-        print('Stack Trace: $s');
         return Center(child: Text('Error: $e'));
       },
       data: (data) {
@@ -194,13 +192,17 @@ class _LoanList extends ConsumerWidget {
           itemBuilder: (context, index) {
             final loan = data[index];
             final isPending = loan.status == 'pending';
+            final isApproved = loan.status == 'approved'; // ✅ চেক করা হলো
 
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: isPending ? Colors.orange : Colors.green,
+                backgroundColor: isPending
+                    ? Colors.orange
+                    : (isApproved ? Colors.blue : Colors.green),
                 child: Icon(
-                  // 🔴 ফিক্স: আগে এখানে Colors ছিল, এখন Icons হবে
-                  isPending ? Icons.hourglass_empty : Icons.check,
+                  isPending
+                      ? Icons.hourglass_empty
+                      : (isApproved ? Icons.money : Icons.check_circle),
                   color: Colors.white,
                 ),
               ),
@@ -208,8 +210,10 @@ class _LoanList extends ConsumerWidget {
               subtitle: Text(
                 "Status: ${loan.status.toUpperCase()}\nReason: ${loan.reason}",
                 style: TextStyle(
-                  color: isPending ? Colors.orange.shade800 : Colors.grey,
-                  fontWeight: isPending ? FontWeight.bold : FontWeight.normal,
+                  color: isPending
+                      ? Colors.orange.shade800
+                      : (isApproved ? Colors.blue : Colors.green),
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               isThreeLine: true,
@@ -217,38 +221,64 @@ class _LoanList extends ConsumerWidget {
                 '৳${loan.amount}',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
-              // ✅ Admin Action: Tap to Approve
-              onTap: isPending
-                  ? () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Approve Loan?'),
-                    content: Text(
-                        'Approve ৳${loan.amount} for ${loan.borrowerName}?\nThis will deduct money from the Community Fund immediately.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.read(loanControllerProvider.notifier).approveLoan(
-                            loan: loan,
-                            context: context,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          foregroundColor: Colors.white,
+
+              // ✅ Logic: Pending হলে Approve, Approved হলে Repay
+              onTap: () {
+                if (isPending) {
+                  // ১. Approve Dialog
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Approve Loan?'),
+                      content: Text(
+                          'Approve ৳${loan.amount} for ${loan.borrowerName}?\nThis will deduct money from the fund.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
                         ),
-                        child: const Text('Approve & Pay'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-                  : null,
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(loanControllerProvider.notifier).approveLoan(
+                              loan: loan,
+                              context: context,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                          child: const Text('Approve & Pay'),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (isApproved) {
+                  // ২. Repay Dialog (NEW)
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Mark as Repaid?'),
+                      content: Text(
+                          'Has ${loan.borrowerName} returned ৳${loan.amount}?\nThis will add the amount back to the Community Fund.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            // কল করা হচ্ছে repayLoan
+                            ref.read(loanControllerProvider.notifier).repayLoan(
+                              loan: loan,
+                              context: context,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                          child: const Text('Confirm Repayment'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
             );
           },
         );

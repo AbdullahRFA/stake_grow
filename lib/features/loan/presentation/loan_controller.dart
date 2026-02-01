@@ -81,4 +81,21 @@ class LoanController extends StateNotifier<bool> {
       },
     );
   }
+  // ✅ NEW: Repay Loan Function
+  void repayLoan({
+    required LoanModel loan,
+    required BuildContext context,
+  }) async {
+    state = true;
+    final res = await _loanRepository.repayLoan(loan);
+    state = false;
+
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Loan Repaid & Fund Restored! 💰');
+        Navigator.pop(context); // ডায়ালগ বন্ধ
+      },
+    );
+  }
 }
