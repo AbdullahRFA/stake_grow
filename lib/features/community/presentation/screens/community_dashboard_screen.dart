@@ -125,7 +125,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         _buildInvestmentCard(context, stats, liveCommunity),
                         const SizedBox(height: 16),
 
-                        // ✅ 8. Active Lending Portfolio (Updated)
+                        // 8. Active Lending Portfolio (Correctly Called Here)
                         _buildActiveLendingCard(context, stats, allLoans, currentUser?.uid),
                         const SizedBox(height: 16),
 
@@ -135,7 +135,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           const SizedBox(height: 16),
                         ],
 
-                        // ✅ 10. My Loan Overview (Updated)
+                        // 10. My Loan Overview
                         _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
                         const SizedBox(height: 30),
 
@@ -178,12 +178,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   // --- Helper Widgets ---
 
-  // ✅ NEW: Active Lending Card with Countdown & Previous History
   Widget _buildActiveLendingCard(BuildContext context, UserStats stats, List<LoanModel> allLoans, String? myUid) {
     // Filter repaid loans where I was a lender
     final myRepaidLending = allLoans.where((l) =>
     l.status == 'repaid' && l.lenderShares.containsKey(myUid)
     ).toList();
+
+    if (stats.lockedInLoan == 0 && myRepaidLending.isEmpty) return const SizedBox();
 
     return Container(
       width: double.infinity,
@@ -235,7 +236,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         Text("৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
                       ],
                     ),
-                    // ✅ Active Loan Countdown
                     LoanCountdownTimer(targetDate: loan.repaymentDate, fontSize: 11, color: Colors.orange),
                   ],
                 ),
@@ -249,7 +249,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
             ),
 
           const SizedBox(height: 10),
-          // ✅ View Previous Locked Loan Button
           if (myRepaidLending.isNotEmpty)
             SizedBox(
               width: double.infinity,
@@ -269,7 +268,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ... (ProfitLossCard, InvestmentCard same as before) ...
   Widget _buildProfitLossCard(UserStats stats) {
     double totalDeposited = stats.monthlyDonated + stats.randomDonated;
     double profitOrLoss = stats.totalLifetimeContributed - totalDeposited;
@@ -397,12 +395,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
     return _buildLoanSummaryCard(context, allLoans, ref, isMyLoan: false);
   }
 
-  // ✅ Updated: Loan Summary Card (Include Rejected)
   Widget _buildLoanSummaryCard(BuildContext context, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan}) {
     final pending = loans.where((l) => l.status == 'pending').toList();
     final active = loans.where((l) => l.status == 'approved').toList();
     final repaid = loans.where((l) => l.status == 'repaid').toList();
-    final rejected = loans.where((l) => l.status == 'rejected').toList(); // ✅ Filter Rejected
+    final rejected = loans.where((l) => l.status == 'rejected').toList();
     final activeAmount = active.fold(0.0, (sum, item) => sum + item.amount);
 
     if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty && rejected.isEmpty) {
@@ -469,7 +466,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 child: _buildBreakdownRow("Repaid Loans", repaid.fold(0, (sum, item) => sum + item.amount), "${repaid.length} Repaid", Colors.green),
               ),
             ),
-          // ✅ Rejected Section
           if (rejected.isNotEmpty) ...[
             const Divider(height: 1),
             InkWell(
@@ -508,7 +504,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     final loan = loans[index];
                     Widget? trailingWidget;
 
-                    // Button Logic (Existing)
                     if (ref != null) {
                       if (isAdminAction && loan.status == 'pending') {
                         trailingWidget = Row(
@@ -600,8 +595,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('${loan.borrowerName}\nReason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
-                                  // ✅ Show Rejected Reason
+                                  Text('${loan.borrowerName}\n'
+                                      'Reason: ${loan.reason}\n'
+                                      'Requested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}\n' // ✅ Added Request Date
+                                      'Deadline: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}' // ✅ Added Deadline
+                                  ),
                                   if (loan.status == 'rejected')
                                     Padding(
                                       padding: const EdgeInsets.only(top: 4.0),
@@ -630,54 +628,89 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+  // ✅ Updated: _showEditDialog with DatePicker
   void _showEditDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
     final amountController = TextEditingController(text: loan.amount.toString());
     final reasonController = TextEditingController(text: loan.reason);
+    DateTime selectedDate = loan.repaymentDate;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Edit Loan Request"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Amount (৳)"),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(labelText: "Reason"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () {
-              final newAmount = double.tryParse(amountController.text) ?? loan.amount;
-              final newReason = reasonController.text.trim();
+      builder: (ctx) => StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Edit Loan Request"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: "Amount (৳)"),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(labelText: "Reason"),
+                  ),
+                  const SizedBox(height: 20),
+                  // ✅ Date Picker
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setState(() => selectedDate = picked);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: "Repayment Deadline",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                          const Icon(Icons.calendar_today, size: 20, color: Colors.teal),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                ElevatedButton(
+                  onPressed: () {
+                    final newAmount = double.tryParse(amountController.text) ?? loan.amount;
+                    final newReason = reasonController.text.trim();
 
-              final updatedLoan = LoanModel(
-                id: loan.id,
-                communityId: loan.communityId,
-                borrowerId: loan.borrowerId,
-                borrowerName: loan.borrowerName,
-                amount: newAmount,
-                reason: newReason,
-                requestDate: loan.requestDate,
-                repaymentDate: loan.repaymentDate,
-                status: loan.status,
-                lenderShares: loan.lenderShares,
-              );
+                    final updatedLoan = LoanModel(
+                      id: loan.id,
+                      communityId: loan.communityId,
+                      borrowerId: loan.borrowerId,
+                      borrowerName: loan.borrowerName,
+                      amount: newAmount,
+                      reason: newReason,
+                      requestDate: loan.requestDate,
+                      repaymentDate: selectedDate, // ✅ Updated Date
+                      status: loan.status,
+                      lenderShares: loan.lenderShares,
+                    );
 
-              ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
-            },
-            child: const Text("Update"),
-          ),
-        ],
+                    ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
+                  },
+                  child: const Text("Update"),
+                ),
+              ],
+            );
+          }
       ),
     );
   }
@@ -717,7 +750,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 borrowerName: loan.borrowerName,
                 amount: loan.amount,
                 reason: rejectReason.isNotEmpty
-                    ? "${loan.reason}\n(Rejection Note: $rejectReason)" // ✅ Appended nicely
+                    ? "${loan.reason}\n(Rejection Note: $rejectReason)"
                     : loan.reason,
                 requestDate: loan.requestDate,
                 repaymentDate: loan.repaymentDate,
@@ -734,8 +767,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+  // ... (Other widgets: _buildStatCard, _buildSubscriptionCard, _buildBreakdownRow, _buildInviteCard, _buildActionButton, _showDonationDetails, _getLoanColor - Keep Same)
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
-    // ... (Same as before)
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -768,7 +801,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ... (Other helpers same) ...
   Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
     bool hasMonthly = stats.monthlyDonated > 0;
     bool hasRandom = stats.randomDonated > 0;
@@ -943,7 +975,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 }
 
-// ... DueWarningCard (Same as before) ...
+// ... DueWarningCard & LoanCountdownTimer (Same as before) ...
 class DueWarningCard extends StatefulWidget {
   final UserStats stats;
   const DueWarningCard({super.key, required this.stats});
@@ -1153,7 +1185,7 @@ class _DueWarningCardState extends State<DueWarningCard> {
   }
 }
 
-// ✅ NEW: Reusable Loan Countdown Timer Widget
+// ... LoanCountdownTimer (Same as before) ...
 class LoanCountdownTimer extends StatefulWidget {
   final DateTime targetDate;
   final double fontSize;
@@ -1194,14 +1226,11 @@ class _LoanCountdownTimerState extends State<LoanCountdownTimer> {
     if (difference.isNegative) {
       if (mounted) setState(() => _timeLeft = "Overdue");
     } else {
-      // Simple breakdown logic similar to DueWarningCard but compact
       int days = difference.inDays;
       int hours = difference.inHours % 24;
       int minutes = difference.inMinutes % 60;
       int seconds = difference.inSeconds % 60;
 
-      // Formatting: 1Y 2M 3D 4H 5M 6S (Simplifying to Days for Loan usually)
-      // Since loans can be short term, Days Hours Min Sec is appropriate
       if (mounted) {
         setState(() {
           _timeLeft = "${days}d ${hours}h ${minutes}m ${seconds}s remaining";
