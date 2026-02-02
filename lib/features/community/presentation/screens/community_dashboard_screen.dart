@@ -125,17 +125,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         _buildInvestmentCard(context, stats, liveCommunity),
                         const SizedBox(height: 16),
 
-                        // 8. Active Lending Portfolio (Correctly Called Here)
-                        _buildActiveLendingCard(context, stats),
+                        // ✅ 8. Active Lending Portfolio (Updated)
+                        _buildActiveLendingCard(context, stats, allLoans, currentUser?.uid),
                         const SizedBox(height: 16),
 
                         // 9. Admin Loan Overview
                         if (isAdmin) ...[
-                          _buildAdminLoanOverviewCard(context, allLoans),
+                          _buildAdminLoanOverviewCard(context, allLoans, ref),
                           const SizedBox(height: 16),
                         ],
 
-                        // 10. My Loan Overview
+                        // ✅ 10. My Loan Overview (Updated)
                         _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
                         const SizedBox(height: 30),
 
@@ -178,8 +178,12 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   // --- Helper Widgets ---
 
-  Widget _buildActiveLendingCard(BuildContext context, UserStats stats) {
-    if (stats.lockedInLoan == 0) return const SizedBox();
+  // ✅ NEW: Active Lending Card with Countdown & Previous History
+  Widget _buildActiveLendingCard(BuildContext context, UserStats stats, List<LoanModel> allLoans, String? myUid) {
+    // Filter repaid loans where I was a lender
+    final myRepaidLending = allLoans.where((l) =>
+    l.status == 'repaid' && l.lenderShares.containsKey(myUid)
+    ).toList();
 
     return Container(
       width: double.infinity,
@@ -211,41 +215,61 @@ class CommunityDashboardScreen extends ConsumerWidget {
           const Text("Active Borrowers:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 5),
 
-          ...stats.myFundedLoans.take(3).map((loan) {
-            final daysLeft = loan.repaymentDate.difference(DateTime.now()).inDays;
-            final myShare = loan.lenderShares[FirebaseAuth.instance.currentUser?.uid] ?? 0;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          if (stats.myFundedLoans.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text("No active loans funded by you.", style: TextStyle(color: Colors.grey)),
+            )
+          else
+            ...stats.myFundedLoans.take(3).map((loan) {
+              final myShare = loan.lenderShares[myUid] ?? 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(loan.borrowerName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text(daysLeft > 0 ? "$daysLeft days remaining" : "Overdue",
-                            style: TextStyle(fontSize: 10, color: daysLeft > 0 ? Colors.grey : Colors.red)),
+                        Text("৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
                       ],
                     ),
-                  ),
-                  Text("৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-                ],
-              ),
-            );
-          }),
+                    // ✅ Active Loan Countdown
+                    LoanCountdownTimer(targetDate: loan.repaymentDate, fontSize: 11, color: Colors.orange),
+                  ],
+                ),
+              );
+            }),
 
           if (stats.myFundedLoans.length > 3)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Center(child: Text("+ ${stats.myFundedLoans.length - 3} more", style: const TextStyle(fontSize: 10, color: Colors.grey))),
             ),
+
+          const SizedBox(height: 10),
+          // ✅ View Previous Locked Loan Button
+          if (myRepaidLending.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  _showLoanDetails(context, "Previous Lending History", myRepaidLending, null, isMyLoan: false, isAdminAction: false);
+                },
+                icon: const Icon(Icons.history, size: 16, color: Colors.teal),
+                label: const Text("View Previous Lending History", style: TextStyle(color: Colors.teal, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.teal),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
+  // ... (ProfitLossCard, InvestmentCard same as before) ...
   Widget _buildProfitLossCard(UserStats stats) {
     double totalDeposited = stats.monthlyDonated + stats.randomDonated;
     double profitOrLoss = stats.totalLifetimeContributed - totalDeposited;
@@ -369,17 +393,19 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAdminLoanOverviewCard(BuildContext context, List<LoanModel> allLoans) {
-    return _buildLoanSummaryCard(context, allLoans, null, isMyLoan: false);
+  Widget _buildAdminLoanOverviewCard(BuildContext context, List<LoanModel> allLoans, WidgetRef ref) {
+    return _buildLoanSummaryCard(context, allLoans, ref, isMyLoan: false);
   }
 
+  // ✅ Updated: Loan Summary Card (Include Rejected)
   Widget _buildLoanSummaryCard(BuildContext context, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan}) {
     final pending = loans.where((l) => l.status == 'pending').toList();
     final active = loans.where((l) => l.status == 'approved').toList();
     final repaid = loans.where((l) => l.status == 'repaid').toList();
+    final rejected = loans.where((l) => l.status == 'rejected').toList(); // ✅ Filter Rejected
     final activeAmount = active.fold(0.0, (sum, item) => sum + item.amount);
 
-    if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty) {
+    if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty && rejected.isEmpty) {
       return _buildStatCard(
         icon: Icons.request_quote,
         color: Colors.grey,
@@ -419,7 +445,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
           ),
           if (active.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Active Loans (To be Repaid)" : "All Active Community Loans", active, ref, false),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Active Loans (To be Repaid)" : "All Active Community Loans", active, ref, isMyLoan: isMyLoan, isAdminAction: !isMyLoan),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: _buildBreakdownRow("Active Debt", activeAmount, "${active.length} Active", Colors.redAccent),
@@ -428,7 +454,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (active.isNotEmpty && (pending.isNotEmpty || repaid.isNotEmpty)) const Divider(height: 1),
           if (pending.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan: isMyLoan, isAdminAction: !isMyLoan),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: _buildBreakdownRow("Pending Requests", pending.fold(0, (sum, item) => sum + item.amount), "${pending.length} Pending", Colors.orange),
@@ -437,19 +463,30 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (pending.isNotEmpty && repaid.isNotEmpty) const Divider(height: 1),
           if (repaid.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Repaid History" : "All Repaid Loans", repaid, ref, false),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Repaid History" : "All Repaid Loans", repaid, ref, isMyLoan: isMyLoan, isAdminAction: false),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: _buildBreakdownRow("Repaid Loans", repaid.fold(0, (sum, item) => sum + item.amount), "${repaid.length} Repaid", Colors.green),
               ),
             ),
+          // ✅ Rejected Section
+          if (rejected.isNotEmpty) ...[
+            const Divider(height: 1),
+            InkWell(
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Rejected Requests" : "Rejected History", rejected, ref, isMyLoan: isMyLoan, isAdminAction: false),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Rejected", rejected.fold(0, (sum, item) => sum + item.amount), "${rejected.length} Rejected", Colors.red),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef? ref, bool isEditable) {
+  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan, required bool isAdminAction}) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -469,18 +506,34 @@ class CommunityDashboardScreen extends ConsumerWidget {
                   itemCount: loans.length,
                   itemBuilder: (context, index) {
                     final loan = loans[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 5),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
-                          child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
-                        ),
-                        title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
-                        subtitle: Text('${loan.borrowerName}\nReason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
-                        isThreeLine: true,
-                        trailing: (isEditable && ref != null)
-                            ? Row(
+                    Widget? trailingWidget;
+
+                    // Button Logic (Existing)
+                    if (ref != null) {
+                      if (isAdminAction && loan.status == 'pending') {
+                        trailingWidget = Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.check_circle, color: Colors.green, size: 30),
+                              tooltip: "Approve Loan",
+                              onPressed: () {
+                                Navigator.pop(context);
+                                ref.read(loanControllerProvider.notifier).approveLoan(loan: loan, context: context);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel, color: Colors.red, size: 30),
+                              tooltip: "Reject Loan",
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showRejectDialog(context, ref, loan);
+                              },
+                            ),
+                          ],
+                        );
+                      } else if (isMyLoan && loan.status == 'pending') {
+                        trailingWidget = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
@@ -498,8 +551,73 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               },
                             ),
                           ],
-                        )
-                            : null,
+                        );
+                      }
+                    }
+
+                    // ✅ Warning for Active Loans
+                    Widget? penaltyWarning;
+                    if (loan.status == 'approved') {
+                      penaltyWarning = Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("⚠️ Late Repayment Rules:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
+                            const SizedBox(height: 4),
+                            const Text("▶ deadline par hole prothom 5 diner moddhe rapy korle:\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
+                            const SizedBox(height: 4),
+                            const Text("▶ prothom 5 din par hole porer 5 diner jonne:\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
+                            const SizedBox(height: 8),
+                            // ✅ Countdown for Repayment
+                            Row(
+                              children: [
+                                const Icon(Icons.timer, size: 14, color: Colors.red),
+                                const SizedBox(width: 5),
+                                LoanCountdownTimer(targetDate: loan.repaymentDate, color: Colors.red, fontSize: 12),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
+                                child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
+                              ),
+                              title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('${loan.borrowerName}\nReason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
+                                  // ✅ Show Rejected Reason
+                                  if (loan.status == 'rejected')
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Text(
+                                        "Note: ${loan.reason}",
+                                        style: const TextStyle(color: Colors.red, fontStyle: FontStyle.italic),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              isThreeLine: true,
+                              trailing: trailingWidget,
+                            ),
+                            if (penaltyWarning != null) penaltyWarning,
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -552,7 +670,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 requestDate: loan.requestDate,
                 repaymentDate: loan.repaymentDate,
                 status: loan.status,
-                // ✅ FIX: Required parameter passed
                 lenderShares: loan.lenderShares,
               );
 
@@ -565,7 +682,60 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+  void _showRejectDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Reject Loan Request"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Are you sure you want to reject this loan?"),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: "Reason (Optional)",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              final rejectReason = reasonController.text.trim();
+
+              final updatedLoan = LoanModel(
+                id: loan.id,
+                communityId: loan.communityId,
+                borrowerId: loan.borrowerId,
+                borrowerName: loan.borrowerName,
+                amount: loan.amount,
+                reason: rejectReason.isNotEmpty
+                    ? "${loan.reason}\n(Rejection Note: $rejectReason)" // ✅ Appended nicely
+                    : loan.reason,
+                requestDate: loan.requestDate,
+                repaymentDate: loan.repaymentDate,
+                status: 'rejected',
+                lenderShares: loan.lenderShares,
+              );
+
+              ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
+            },
+            child: const Text("Reject"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
+    // ... (Same as before)
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -598,6 +768,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+  // ... (Other helpers same) ...
   Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
     bool hasMonthly = stats.monthlyDonated > 0;
     bool hasRandom = stats.randomDonated > 0;
@@ -766,11 +937,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
       case 'approved': return Colors.redAccent;
       case 'pending': return Colors.orange;
       case 'repaid': return Colors.green;
+      case 'rejected': return Colors.red;
       default: return Colors.grey;
     }
   }
 }
 
+// ... DueWarningCard (Same as before) ...
 class DueWarningCard extends StatefulWidget {
   final UserStats stats;
   const DueWarningCard({super.key, required this.stats});
@@ -975,6 +1148,82 @@ class _DueWarningCardState extends State<DueWarningCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ✅ NEW: Reusable Loan Countdown Timer Widget
+class LoanCountdownTimer extends StatefulWidget {
+  final DateTime targetDate;
+  final double fontSize;
+  final Color color;
+
+  const LoanCountdownTimer({
+    super.key,
+    required this.targetDate,
+    this.fontSize = 12,
+    this.color = Colors.black87,
+  });
+
+  @override
+  State<LoanCountdownTimer> createState() => _LoanCountdownTimerState();
+}
+
+class _LoanCountdownTimerState extends State<LoanCountdownTimer> {
+  Timer? _timer;
+  String _timeLeft = "Loading...";
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) _updateTime();
+    });
+    _updateTime(); // Initial Call
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final difference = widget.targetDate.difference(now);
+
+    if (difference.isNegative) {
+      if (mounted) setState(() => _timeLeft = "Overdue");
+    } else {
+      // Simple breakdown logic similar to DueWarningCard but compact
+      int days = difference.inDays;
+      int hours = difference.inHours % 24;
+      int minutes = difference.inMinutes % 60;
+      int seconds = difference.inSeconds % 60;
+
+      // Formatting: 1Y 2M 3D 4H 5M 6S (Simplifying to Days for Loan usually)
+      // Since loans can be short term, Days Hours Min Sec is appropriate
+      if (mounted) {
+        setState(() {
+          _timeLeft = "${days}d ${hours}h ${minutes}m ${seconds}s remaining";
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _timeLeft,
+      style: TextStyle(
+        fontSize: widget.fontSize,
+        color: widget.color,
+        fontFeatures: const [FontFeature.tabularFigures()],
       ),
     );
   }
