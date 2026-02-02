@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
+import 'package:stake_grow/features/community/presentation/transaction_providers.dart'; // ✅ Imported for Realtime Data
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
@@ -22,139 +23,224 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final isAdmin = currentUser != null && currentUser.uid == community.adminId;
+    // ✅ 1. Watch Real-time Community Data
+    final communityAsync = ref.watch(communityDetailsProvider(community.id));
 
-    final statsAsync = ref.watch(userStatsProvider(community));
+    return communityAsync.when(
+      loading: () => const Scaffold(body: Loader()),
+      error: (e, s) => Scaffold(body: Center(child: Text('Error: $e'))),
+      data: (liveCommunity) {
+        final currentUser = FirebaseAuth.instance.currentUser;
+        final isAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(community.name),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () {
-              context.push('/settings', extra: community);
-            },
-            icon: const Icon(Icons.settings),
+        final statsAsync = ref.watch(userStatsProvider(liveCommunity));
+        // ✅ 2. Watch Real-time Loan Data (Fixes non-updating Loan Card)
+        final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(liveCommunity.name),
+            centerTitle: true,
+            actions: [
+              IconButton(
+                onPressed: () {
+                  context.push('/settings', extra: liveCommunity);
+                },
+                icon: const Icon(Icons.settings),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: statsAsync.when(
-        loading: () => const Loader(),
-        error: (e, s) => Center(child: Text('Error: $e')),
-        data: (stats) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Hero Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Colors.teal, Colors.tealAccent],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+          body: statsAsync.when(
+            loading: () => const Loader(),
+            error: (e, s) => Center(child: Text('Error: $e')),
+            data: (stats) {
+              return loansAsync.when(
+                loading: () => const Loader(),
+                error: (e, s) => Center(child: Text('Error loading loans: $e')),
+                data: (allLoans) {
+                  // Filter loans for "My Loans" card
+                  final myLoans = allLoans.where((l) => l.borrowerId == currentUser?.uid).toList();
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 1. Hero Card (Real-time Fund)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Colors.teal, Colors.tealAccent],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Text('Total Community Fund', style: TextStyle(color: Colors.white70)),
+                              const SizedBox(height: 10),
+                              Text('৳ ${liveCommunity.totalFund.toStringAsFixed(2)}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 10),
+                              Text('${liveCommunity.members.length} Members Active', style: const TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 2. Due/Warning Card
+                        DueWarningCard(stats: stats),
+                        const SizedBox(height: 16),
+
+                        // 3. Invite Code (Admin)
+                        if (isAdmin) ...[
+                          _buildInviteCard(context, liveCommunity.inviteCode),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // 4. Contribution Card
+                        const Text("Your Contributions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        const SizedBox(height: 12),
+                        _buildStatCard(
+                          icon: Icons.volunteer_activism,
+                          color: Colors.blueAccent,
+                          title: 'My Liquid Balance',
+                          value: '৳ ${stats.totalDonated.toStringAsFixed(0)}',
+                          subtitle: 'You own ${stats.contributionPercentage.toStringAsFixed(1)}% of the fund',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 5. Profit/Loss & Deposit Card
+                        _buildProfitLossCard(stats),
+                        const SizedBox(height: 12),
+
+                        // 6. Subscription Breakdown
+                        _buildSubscriptionCard(context, stats),
+                        const SizedBox(height: 16),
+
+                        // 7. Investment Overview
+                        _buildInvestmentCard(context, stats, liveCommunity),
+                        const SizedBox(height: 16),
+
+                        // ✅ 8. Admin Loan Overview (New)
+                        if (isAdmin) ...[
+                          _buildAdminLoanOverviewCard(context, allLoans),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // ✅ 9. My Loan Overview (Real-time)
+                        _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
+                        const SizedBox(height: 30),
+
+                        // 10. Quick Actions
+                        const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildActionButton(Icons.volunteer_activism, 'Deposit', () {
+                              context.push('/create-donation', extra: {
+                                'communityId': liveCommunity.id,
+                                'isMonthlyDisabled': stats.isCurrentMonthPaid,
+                              });
+                            }),
+
+                            _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: liveCommunity.id); }),
+
+                            _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
+                              if (isAdmin) { context.push('/create-investment', extra: liveCommunity.id); }
+                              else { context.push('/investment-history', extra: liveCommunity.id); }
+                            }),
+
+                            _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
+                              if (isAdmin) { context.push('/create-activity', extra: liveCommunity.id); }
+                              else { context.push('/activity-history', extra: liveCommunity.id); }
+                            }),
+
+                            if (isAdmin) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: liveCommunity.id); }),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('Total Community Fund', style: TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 10),
-                      Text('৳ ${community.totalFund.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      Text('${community.members.length} Members Active', style: const TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // 2. Due/Warning Card with Live Clock
-                DueWarningCard(stats: stats),
-                const SizedBox(height: 16),
-
-                // 3. Invite Code (Admin)
-                if (isAdmin) ...[
-                  _buildInviteCard(context, community.inviteCode),
-                  const SizedBox(height: 24),
-                ],
-
-                // 4. Contribution Card
-                const Text("Your Contributions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                const SizedBox(height: 12),
-                _buildStatCard(
-                  icon: Icons.volunteer_activism,
-                  color: Colors.blueAccent,
-                  title: 'My Total Contribution',
-                  value: '৳ ${stats.totalDonated.toStringAsFixed(0)}',
-                  subtitle: 'You own ${stats.contributionPercentage.toStringAsFixed(1)}% of the fund',
-                ),
-                const SizedBox(height: 12),
-
-                // 5. Subscription Breakdown
-                _buildSubscriptionCard(context, stats),
-                const SizedBox(height: 16),
-
-                // ✅ 6. Investment Overview Card (Updated: Always Visible)
-                _buildInvestmentCard(context, stats, community),
-                const SizedBox(height: 16),
-
-                // 7. My Loan Overview
-                _buildLoanSummaryCard(context, stats, ref),
-                const SizedBox(height: 30),
-
-                // 8. Quick Actions
-                const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildActionButton(Icons.volunteer_activism, 'Donate', () {
-                      context.push('/create-donation', extra: {
-                        'communityId': community.id,
-                        'isMonthlyDisabled': stats.isCurrentMonthPaid,
-                      });
-                    }),
-
-                    _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: community.id); }),
-
-                    // Admin creates, Members view history (Button Label differs)
-                    _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
-                      if (isAdmin) { context.push('/create-investment', extra: community.id); }
-                      else { context.push('/investment-history', extra: community.id); }
-                    }),
-
-                    _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
-                      if (isAdmin) { context.push('/create-activity', extra: community.id); }
-                      else { context.push('/activity-history', extra: community.id); }
-                    }),
-
-                    if (isAdmin) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: community.id); }),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          );
-        },
-      ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
   // --- Helper Widgets ---
 
-  // ✅ UPDATED: Investment Overview (Visible to All)
-  Widget _buildInvestmentCard(BuildContext context, UserStats stats, CommunityModel community) {
-    // 🔴 Removed the 'if (stats.lockedInInvestment == 0)' check to show always
+  Widget _buildProfitLossCard(UserStats stats) {
+    double totalDeposited = stats.monthlyDonated + stats.randomDonated;
+    double profitOrLoss = stats.totalLifetimeContributed - totalDeposited;
+    bool isProfit = profitOrLoss >= 0;
 
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.indigo.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("My Total Deposit", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 5),
+                Text("৳ ${totalDeposited.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Container(width: 1, height: 40, color: Colors.grey.shade300),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(isProfit ? "Total Profit" : "Total Loss", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Icon(
+                      isProfit ? Icons.arrow_upward : Icons.arrow_downward,
+                      color: isProfit ? Colors.green : Colors.red,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      "৳ ${profitOrLoss.abs().toStringAsFixed(0)}",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isProfit ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvestmentCard(BuildContext context, UserStats stats, CommunityModel community) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -218,12 +304,20 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLoanSummaryCard(BuildContext context, UserStats stats, WidgetRef ref) {
-    bool hasPending = stats.pendingLoans.isNotEmpty;
-    bool hasActive = stats.activeLoans.isNotEmpty;
-    bool hasRepaid = stats.repaidLoans.isNotEmpty;
+  // ✅ New Widget: Admin Loan Overview
+  Widget _buildAdminLoanOverviewCard(BuildContext context, List<LoanModel> allLoans) {
+    return _buildLoanSummaryCard(context, allLoans, null, isMyLoan: false);
+  }
 
-    if (!hasPending && !hasActive && !hasRepaid) {
+  // ✅ Updated: Generic Loan Summary Card (Used for both My Loans & Admin Overview)
+  Widget _buildLoanSummaryCard(BuildContext context, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan}) {
+    final pending = loans.where((l) => l.status == 'pending').toList();
+    final active = loans.where((l) => l.status == 'approved').toList();
+    final repaid = loans.where((l) => l.status == 'repaid').toList();
+    final activeAmount = active.fold(0.0, (sum, item) => sum + item.amount);
+
+    // For Admin view, we don't show "No History" if empty, just show zeros or hide
+    if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty) {
       return _buildStatCard(
         icon: Icons.request_quote,
         color: Colors.grey,
@@ -233,12 +327,16 @@ class CommunityDashboardScreen extends ConsumerWidget {
       );
     }
 
+    String title = isMyLoan ? "My Loans" : "Community Loan Overview";
+    Color cardColor = isMyLoan ? Colors.white : Colors.indigo.shade50;
+    Color iconColor = isMyLoan ? Colors.indigo : Colors.deepPurple;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(15),
         boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+        border: Border.all(color: iconColor.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,38 +347,38 @@ class CommunityDashboardScreen extends ConsumerWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: Colors.indigo.withOpacity(0.1),
-                  child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
+                  backgroundColor: iconColor.withOpacity(0.1),
+                  child: Icon(isMyLoan ? Icons.account_balance_wallet : Icons.admin_panel_settings, color: iconColor, size: 24),
                 ),
                 const SizedBox(width: 15),
-                const Text("My Loans", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
-          if (hasActive)
+          if (active.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, "Active Loans (To be Repaid)", stats.activeLoans, ref, false),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Active Loans (To be Repaid)" : "All Active Community Loans", active, ref, false),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Active Debt (Unpaid)", stats.activeLoanAmount, "${stats.activeLoans.length} Active", Colors.redAccent),
+                child: _buildBreakdownRow("Active Debt", activeAmount, "${active.length} Active", Colors.redAccent),
               ),
             ),
-          if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
-          if (hasPending)
+          if (active.isNotEmpty && (pending.isNotEmpty || repaid.isNotEmpty)) const Divider(height: 1),
+          if (pending.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans, ref, true),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan), // Only my loans are editable here
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Pending Requests", stats.pendingLoans.fold(0, (sum, item) => sum + item.amount), "${stats.pendingLoans.length} Pending", Colors.orange),
+                child: _buildBreakdownRow("Pending Requests", pending.fold(0, (sum, item) => sum + item.amount), "${pending.length} Pending", Colors.orange),
               ),
             ),
-          if (hasPending && hasRepaid) const Divider(height: 1),
-          if (hasRepaid)
+          if (pending.isNotEmpty && repaid.isNotEmpty) const Divider(height: 1),
+          if (repaid.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, "Repaid History", stats.repaidLoans, ref, false),
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Repaid History" : "All Repaid Loans", repaid, ref, false),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Repaid Loans", stats.repaidLoans.fold(0, (sum, item) => sum + item.amount), "${stats.repaidLoans.length} Repaid", Colors.green),
+                child: _buildBreakdownRow("Repaid Loans", repaid.fold(0, (sum, item) => sum + item.amount), "${repaid.length} Repaid", Colors.green),
               ),
             ),
           const SizedBox(height: 10),
@@ -289,7 +387,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef ref, bool isEditable) {
+  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef? ref, bool isEditable) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -317,16 +415,16 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
                         ),
                         title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
-                        subtitle: Text('Reason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
+                        subtitle: Text('${loan.borrowerName}\nReason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
                         isThreeLine: true,
-                        trailing: isEditable
+                        trailing: (isEditable && ref != null)
                             ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit, color: Colors.blue),
                               onPressed: () {
-                                Navigator.pop(context); // Close sheet
+                                Navigator.pop(context);
                                 _showEditDialog(context, ref, loan);
                               },
                             ),
@@ -334,7 +432,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () {
                                 ref.read(loanControllerProvider.notifier).deleteLoan(loan.id, context);
-                                Navigator.pop(context); // Close sheet
+                                Navigator.pop(context);
                               },
                             ),
                           ],
