@@ -9,7 +9,7 @@ class SignUpScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nameController = useTextEditingController();
+    // 1. Removed nameController
     final emailController = useTextEditingController();
     final passwordController = useTextEditingController();
     final isLoading = ref.watch(authControllerProvider);
@@ -21,7 +21,7 @@ class SignUpScreen extends HookConsumerWidget {
           context: context,
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
-          name: nameController.text.trim(),
+          name: 'Member', // 2. Passing default placeholder as name is removed from UI
         );
       }
     }
@@ -38,16 +38,7 @@ class SignUpScreen extends HookConsumerWidget {
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (val) => val!.isEmpty ? 'Enter your name' : null,
-                ),
-                const SizedBox(height: 16),
+                // 3. Removed Full Name TextFormField
                 TextFormField(
                   controller: emailController,
                   decoration: const InputDecoration(
