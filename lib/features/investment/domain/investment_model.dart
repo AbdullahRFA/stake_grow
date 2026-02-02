@@ -5,8 +5,13 @@ class InvestmentModel {
   final String details;
   final double investedAmount;
   final double expectedProfit;
-  final String status; // 'active', 'completed', 'loss'
+  final String status; // 'active', 'completed'
   final DateTime startDate;
+
+  // ✅ NEW FIELDS for Return
+  final double? returnAmount; // কত টাকা ফেরত এসেছে
+  final double? actualProfitLoss; // লাভ নাকি ক্ষতি (+/-)
+  final DateTime? endDate; // কবে শেষ হলো
 
   InvestmentModel({
     required this.id,
@@ -17,6 +22,9 @@ class InvestmentModel {
     required this.expectedProfit,
     required this.status,
     required this.startDate,
+    this.returnAmount,
+    this.actualProfitLoss,
+    this.endDate,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +37,9 @@ class InvestmentModel {
       'expectedProfit': expectedProfit,
       'status': status,
       'startDate': startDate.millisecondsSinceEpoch,
+      'returnAmount': returnAmount,
+      'actualProfitLoss': actualProfitLoss,
+      'endDate': endDate?.millisecondsSinceEpoch,
     };
   }
 
@@ -42,6 +53,9 @@ class InvestmentModel {
       expectedProfit: (map['expectedProfit'] ?? 0.0).toDouble(),
       status: map['status'] ?? 'active',
       startDate: DateTime.fromMillisecondsSinceEpoch(map['startDate']),
+      returnAmount: map['returnAmount'] != null ? (map['returnAmount'] as num).toDouble() : null,
+      actualProfitLoss: map['actualProfitLoss'] != null ? (map['actualProfitLoss'] as num).toDouble() : null,
+      endDate: map['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['endDate']) : null,
     );
   }
 }

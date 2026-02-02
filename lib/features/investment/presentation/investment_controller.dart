@@ -18,6 +18,7 @@ class InvestmentController extends StateNotifier<bool> {
       : _repo = repo,
         super(false);
 
+  // ... createInvestment (Keep as is) ...
   void createInvestment({
     required String communityId,
     required String projectName,
@@ -31,7 +32,6 @@ class InvestmentController extends StateNotifier<bool> {
 
     if (user != null) {
       final investmentId = const Uuid().v1();
-
       final investment = InvestmentModel(
         id: investmentId,
         communityId: communityId,
@@ -45,11 +45,10 @@ class InvestmentController extends StateNotifier<bool> {
 
       final res = await _repo.createInvestment(investment);
       state = false;
-
       res.fold(
             (l) => showSnackBar(context, l.message),
             (r) {
-          showSnackBar(context, 'Investment Started Successfully! 📉'); // 📉 = Fund down (Invested)
+          showSnackBar(context, 'Investment Started Successfully! 📉');
           Navigator.pop(context);
         },
       );
@@ -57,5 +56,39 @@ class InvestmentController extends StateNotifier<bool> {
       state = false;
       showSnackBar(context, 'Access Denied');
     }
+  }
+
+  // ✅ NEW: Close Investment Logic
+  void closeInvestment({
+    required String communityId,
+    required String investmentId,
+    required double investedAmount,
+    required double returnAmount,
+    required BuildContext context,
+  }) async {
+    state = true;
+    // লাভ বা ক্ষতি হিসাব করা
+    double profitOrLoss = returnAmount - investedAmount;
+
+    final res = await _repo.closeInvestment(
+      communityId: communityId,
+      investmentId: investmentId,
+      returnAmount: returnAmount,
+      profitOrLoss: profitOrLoss,
+    );
+
+    state = false;
+
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        if (profitOrLoss >= 0) {
+          showSnackBar(context, 'Profit Added to Fund! 🎉 (+৳$profitOrLoss)');
+        } else {
+          showSnackBar(context, 'Investment Closed with Loss. ⚠️ (৳$profitOrLoss)');
+        }
+        Navigator.pop(context); // Dialog Close
+      },
+    );
   }
 }
