@@ -124,6 +124,29 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+
+            // ✅ Rules Section Added Here
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text("⚠️ Late Repayment Rules:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red)),
+                  SizedBox(height: 8),
+                  Text("▶ ডেড লাইন পার হলে প্রথম ৫ দিনের মধ্য পে করলে :\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 12)),
+                  SizedBox(height: 6),
+                  Text("▶ ৬ষ্ট দিন থেকে ১০ম দিনের মধ্য পে করলে :\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 12)),
+                  SizedBox(height: 8),
+                  Text("▶ ১০ম দিন পার হলে কমিটি যেই সিদ্ধান্ত নিবে তার সাথে আমি একমত।", style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
             const SizedBox(height: 30),
 
             SizedBox(
