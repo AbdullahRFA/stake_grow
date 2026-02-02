@@ -125,7 +125,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         _buildInvestmentCard(context, stats, liveCommunity),
                         const SizedBox(height: 16),
 
-                        // 8. Active Lending Portfolio (Correctly Called Here)
+                        // 8. Active Lending Portfolio
                         _buildActiveLendingCard(context, stats, allLoans, currentUser?.uid),
                         const SizedBox(height: 16),
 
@@ -179,7 +179,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
   // --- Helper Widgets ---
 
   Widget _buildActiveLendingCard(BuildContext context, UserStats stats, List<LoanModel> allLoans, String? myUid) {
-    // Filter repaid loans where I was a lender
     final myRepaidLending = allLoans.where((l) =>
     l.status == 'repaid' && l.lenderShares.containsKey(myUid)
     ).toList();
@@ -506,6 +505,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
                     if (ref != null) {
                       if (isAdminAction && loan.status == 'pending') {
+                        // ✅ Admin Actions: Approve / Reject
                         trailingWidget = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -513,7 +513,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               icon: const Icon(Icons.check_circle, color: Colors.green, size: 30),
                               tooltip: "Approve Loan",
                               onPressed: () {
-                                Navigator.pop(context);
+                                Navigator.pop(context); // Close sheet
                                 ref.read(loanControllerProvider.notifier).approveLoan(loan: loan, context: context);
                               },
                             ),
@@ -521,13 +521,23 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               icon: const Icon(Icons.cancel, color: Colors.red, size: 30),
                               tooltip: "Reject Loan",
                               onPressed: () {
-                                Navigator.pop(context);
+                                Navigator.pop(context); // Close sheet
                                 _showRejectDialog(context, ref, loan);
                               },
                             ),
                           ],
                         );
+                      } else if (isAdminAction && loan.status == 'approved') {
+                        // ✅ Admin Action: Repay (Mark as Paid)
+                        trailingWidget = IconButton(
+                          icon: const Icon(Icons.monetization_on, color: Colors.blue, size: 30),
+                          tooltip: "Mark as Repaid",
+                          onPressed: () {
+                            _showRepayDialog(context, ref, loan);
+                          },
+                        );
                       } else if (isMyLoan && loan.status == 'pending') {
+                        // ✅ User Actions: Edit / Delete
                         trailingWidget = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -562,9 +572,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           children: [
                             const Text("⚠️ Late Repayment Rules:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
                             const SizedBox(height: 4),
-                            const Text("▶ deadline par hole prothom 5 diner moddhe rapy korle:\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
+                            const Text("▶ ডেড লাইন পার হলে প্রথম ৫ দিনের মধ্য পে করলে :\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
                             const SizedBox(height: 4),
-                            const Text("▶ prothom 5 din par hole porer 5 diner jonne:\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
+                            const Text("▶ ৬ষ্ট দিন থেকে ১০ম দিনের মধ্য পে করলে :\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
+                            const SizedBox(height: 8),
+                            const Text("▶ ১০ম দিন পার হলে কমিটি যেই সিদ্ধান্ত নিবে তার সাথে আমি একমত ", style: TextStyle(fontSize: 11, color: Colors.red)),
                             const SizedBox(height: 8),
                             // ✅ Countdown for Repayment
                             Row(
@@ -595,11 +607,19 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('${loan.borrowerName}\n'
-                                      'Reason: ${loan.reason}\n'
-                                      'Requested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}\n' // ✅ Added Request Date
-                                      'Deadline: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}' // ✅ Added Deadline
-                                  ),
+                                  Text('${loan.borrowerName}\nReason: ${loan.reason}'),
+                                  const SizedBox(height: 4),
+                                  // ✅ Requested Date (Always show)
+                                  Text('Requested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+
+                                  // ✅ Date Logic based on status
+                                  if (loan.status == 'repaid')
+                                    Text('Repayment Date: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
+                                        style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))
+                                  else
+                                    Text('Deadline: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
+                                        style: const TextStyle(fontSize: 12)),
+
                                   if (loan.status == 'rejected')
                                     Padding(
                                       padding: const EdgeInsets.only(top: 4.0),
@@ -628,7 +648,29 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ Updated: _showEditDialog with DatePicker
+  // ✅ New: Repay Dialog
+  void _showRepayDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Repayment"),
+        content: Text("Mark loan of ৳${loan.amount} from ${loan.borrowerName} as repaid?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context); // Close details sheet
+              ref.read(loanControllerProvider.notifier).repayLoan(loan: loan, context: context);
+            },
+            child: const Text("Confirm Repay"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEditDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
     final amountController = TextEditingController(text: loan.amount.toString());
     final reasonController = TextEditingController(text: loan.reason);
@@ -767,8 +809,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ... (Other widgets: _buildStatCard, _buildSubscriptionCard, _buildBreakdownRow, _buildInviteCard, _buildActionButton, _showDonationDetails, _getLoanColor - Keep Same)
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
+    // ... (Same as before)
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -801,6 +843,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+  // ... (Other helpers same) ...
   Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
     bool hasMonthly = stats.monthlyDonated > 0;
     bool hasRandom = stats.randomDonated > 0;
