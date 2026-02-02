@@ -32,7 +32,9 @@ class CommunityDashboardScreen extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              context.push('/settings', extra: community);
+            },
             icon: const Icon(Icons.settings),
           ),
         ],

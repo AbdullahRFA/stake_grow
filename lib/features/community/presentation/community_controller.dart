@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stake_grow/core/utils/utils.dart';
+import 'package:stake_grow/features/auth/domain/user_model.dart'; // ✅ Added Import
 import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:uuid/uuid.dart';
 
-// ✅ UPDATE: এই প্রভাইডারটি এখন স্মার্টলি কাজ করবে
 final userCommunitiesProvider = StreamProvider((ref) {
-  // ১. অথেনটিকেশন স্টেটের দিকে নজর রাখা (Watch)
   final authState = ref.watch(authStateChangeProvider);
-
-  // ২. যদি ইউজার লগিন থাকে, তবেই ডাটা আনো
   return authState.when(
     data: (user) {
       if (user != null) {
         final repository = ref.watch(communityRepositoryProvider);
         return repository.getUserCommunities(user.uid);
       }
-      return Stream.value([]); // ইউজার না থাকলে খালি লিস্ট
+      return Stream.value([]);
     },
     error: (error, stackTrace) => Stream.value([]),
     loading: () => Stream.value([]),
@@ -43,7 +40,6 @@ class CommunityController extends StateNotifier<bool> {
 
   void createCommunity(String name, BuildContext context) async {
     state = true;
-    // এখানে read ব্যবহার করা ঠিক আছে কারণ এটি বাটনে চাপ দিলে কল হয়
     final user = _ref.read(authStateChangeProvider).value;
 
     if (user != null) {
@@ -75,11 +71,6 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
-// আগের getUserCommunities ফাংশনটি এখন আর এখানে দরকার নেই,
-// কারণ আমরা সরাসরি প্রভাইডারের ভেতরেই লজিক লিখে দিয়েছি।
-
-
-// ✅ NEW: Join Function
   void joinCommunity(String inviteCode, BuildContext context) async {
     state = true;
     final user = _ref.read(authStateChangeProvider).value;
@@ -92,12 +83,40 @@ class CommunityController extends StateNotifier<bool> {
             (l) => showSnackBar(context, l.message),
             (r) {
           showSnackBar(context, 'Joined Community Successfully! 🎉');
-          Navigator.pop(context); // সফল হলে স্ক্রিন বন্ধ হবে
+          Navigator.pop(context);
         },
       );
     } else {
       state = false;
       showSnackBar(context, 'User not logged in!');
     }
+  }
+
+  // ✅ মেথডগুলো এখন ক্লাসের ভেতরে নিয়ে আসা হয়েছে
+
+  // ১. মেম্বারদের তথ্য লোড করা (Stream)
+  Stream<List<UserModel>> getCommunityMembers(List<String> memberIds) {
+    return _communityRepository.getCommunityMembers(memberIds);
+  }
+
+  // ২. মেম্বার রিমুভ করা
+  void removeMember(String communityId, String memberId, BuildContext context) async {
+    final res = await _communityRepository.removeMember(communityId, memberId);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) => showSnackBar(context, 'Member removed successfully!'),
+    );
+  }
+
+  // ৩. এডমিন পরিবর্তন করা
+  void updateAdmin(String communityId, String newAdminId, BuildContext context) async {
+    final res = await _communityRepository.updateCommunityAdmin(communityId, newAdminId);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Ownership transferred successfully!');
+        Navigator.pop(context); // ডায়ালগ বন্ধ
+      },
+    );
   }
 }

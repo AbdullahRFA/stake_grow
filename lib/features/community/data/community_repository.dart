@@ -5,6 +5,8 @@ import 'package:stake_grow/core/failure.dart';
 import 'package:stake_grow/core/type_defs.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 
+import '../../auth/domain/user_model.dart';
+
 // Provider
 final communityRepositoryProvider = Provider((ref) {
   return CommunityRepository(firestore: FirebaseFirestore.instance);
@@ -94,6 +96,52 @@ class CommunityRepository {
         });
       });
 
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+  // ... আগের কোড ...
+
+  // ✅ ১. মেম্বারদের বিস্তারিত তথ্য আনা
+  Stream<List<UserModel>> getCommunityMembers(List<String> memberIds) {
+    // Firestore এর 'whereIn' লিমিট ১০, তাই এখানে আমরা কালেকশন স্ট্রিম নিয়ে ফিল্টার করছি (ছোট অ্যাপের জন্য)
+    return _firestore.collection('users').snapshots().map((snapshot) {
+      List<UserModel> members = [];
+      for (var doc in snapshot.docs) {
+        if (memberIds.contains(doc.id)) {
+          members.add(UserModel.fromMap(doc.data()));
+        }
+      }
+      return members;
+    });
+  }
+
+  // ✅ ২. মেম্বার রিমুভ করা (Kick)
+  FutureEither<void> removeMember(String communityId, String memberId) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        // কমিউনিটি থেকে মেম্বার রিমুভ
+        transaction.update(_firestore.collection('communities').doc(communityId), {
+          'members': FieldValue.arrayRemove([memberId]),
+        });
+        // ইউজারের joinedCommunities থেকে কমিউনিটি রিমুভ
+        transaction.update(_firestore.collection('users').doc(memberId), {
+          'joinedCommunities': FieldValue.arrayRemove([communityId]),
+        });
+      });
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ ৩. এডমিন পরিবর্তন করা (Transfer Ownership)
+  FutureEither<void> updateCommunityAdmin(String communityId, String newAdminId) async {
+    try {
+      await _firestore.collection('communities').doc(communityId).update({
+        'adminId': newAdminId,
+      });
       return right(null);
     } catch (e) {
       return left(Failure(e.toString()));

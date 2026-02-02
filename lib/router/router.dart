@@ -21,6 +21,9 @@ import '../features/donation/presentation/screens/create_donation_screen.dart';
 import '../features/investment/presentation/screens/create_investment_screen.dart';
 import '../features/loan/presentation/screens/create_loan_screen.dart';
 
+import 'package:stake_grow/features/community/presentation/screens/settings_screen.dart';
+import 'package:stake_grow/features/community/presentation/screens/member_list_screen.dart';
+import 'package:stake_grow/features/auth/presentation/screens/edit_profile_screen.dart';
 
 // গ্লোবাল নেভিগেটর কি (Key)
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -143,6 +146,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           final communityId = state.extra as String;
           return ActivityHistoryScreen(communityId: communityId);
         },
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) {
+          final community = state.extra as CommunityModel;
+          return SettingsScreen(community: community);
+        },
+      ),
+      GoRoute(
+        path: '/member-list',
+        builder: (context, state) {
+          final community = state.extra as CommunityModel;
+          return MemberListScreen(community: community);
+        },
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        builder: (context, state) => const EditProfileScreen(),
       ),
       // GoRoute(
       //   path: '/user-dashboard',

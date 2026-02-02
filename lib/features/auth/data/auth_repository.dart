@@ -125,4 +125,26 @@ class AuthRepository implements IAuthRepository {
   Future<void> logOut() async {
     await _auth.signOut();
   }
+
+  // ... আগের কোড ...
+
+  // ✅ NEW: প্রোফাইল আপডেট ফাংশন
+  FutureEither<void> updateUserData(UserModel user) async {
+    try {
+      await _firestore.collection('users').doc(user.uid).update(user.toMap());
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: মেম্বারদের ডাটা আনার জন্য (প্রয়োজন হবে)
+  Future<UserModel?> getUserData(String uid) async {
+    var doc = await _firestore.collection('users').doc(uid).get();
+    if (doc.exists && doc.data() != null) {
+      return UserModel.fromMap(doc.data()!);
+    }
+    return null;
+  }
+
 }

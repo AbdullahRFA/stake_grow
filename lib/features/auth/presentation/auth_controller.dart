@@ -83,4 +83,23 @@ class AuthController extends StateNotifier<bool> {
       },
     );
   }
+  // ✅ প্রোফাইল আপডেট
+  void updateProfile(UserModel user, BuildContext context) async {
+    state = true;
+    final res = await _authRepository.updateUserData(user);
+    state = false;
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Profile updated successfully!');
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  // ✅ গেট ইউজার ডাটা (Edit Profile পেজে ডাটা দেখানোর জন্য)
+  Future<UserModel?> getUserData(String uid) {
+    return _authRepository.getUserData(uid);
+  }
 }
+
