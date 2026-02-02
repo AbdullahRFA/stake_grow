@@ -14,7 +14,7 @@ class LoanRepository {
 
   LoanRepository({required FirebaseFirestore firestore}) : _firestore = firestore;
 
-  // Request Loan
+  // Request Loan (Initially empty shares)
   FutureEither<void> requestLoan(LoanModel loan) async {
     try {
       await _firestore.collection('loans').doc(loan.id).set(loan.toMap());
@@ -40,30 +40,62 @@ class LoanRepository {
     });
   }
 
-  // Approve Loan
+  // ✅ Approve Loan with Share Calculation (Better Way)
   FutureEither<void> approveLoan(LoanModel loan) async {
     try {
       final communityRef = _firestore.collection('communities').doc(loan.communityId);
       final loanRef = _firestore.collection('loans').doc(loan.id);
 
-      final snapshot = await communityRef.get();
-      if (!snapshot.exists) return left(Failure("Community not found"));
+      // ১. ডোনেশন হিস্ট্রি চেক করে শেয়ার ক্যালকুলেশন (ইনভেস্টমেন্টের লজিক অনুযায়ী)
+      final donationsSnapshot = await _firestore
+          .collection('donations')
+          .where('communityId', isEqualTo: loan.communityId)
+          .get();
 
-      double currentFund = (snapshot.data()?['totalFund'] ?? 0.0).toDouble();
+      Map<String, double> userTotalDonations = {};
+      double totalPool = 0.0;
 
-      if (currentFund < loan.amount) {
-        return left(Failure("Insufficient fund! Available: ৳$currentFund"));
+      for (var doc in donationsSnapshot.docs) {
+        final data = doc.data();
+        final uid = data['senderId'];
+        final amount = (data['amount'] ?? 0.0).toDouble();
+        userTotalDonations[uid] = (userTotalDonations[uid] ?? 0.0) + amount;
+        totalPool += amount;
       }
 
+      // ২. লোন অ্যামাউন্ট অনুযায়ী কার কত টাকা লক হবে তা বের করা
+      Map<String, double> calculatedLenderShares = {};
+      if (totalPool > 0) {
+        userTotalDonations.forEach((uid, totalDonated) {
+          if (totalDonated > 0) {
+            double sharePercentage = totalDonated / totalPool;
+            double shareAmount = loan.amount * sharePercentage;
+            calculatedLenderShares[uid] = double.parse(shareAmount.toStringAsFixed(2));
+          }
+        });
+      }
+
+      // ৩. ট্রানজেকশন (ফান্ড কমানো + লোন স্ট্যাটাস ও শেয়ার আপডেট)
       await _firestore.runTransaction((transaction) async {
-        final freshSnapshot = await transaction.get(communityRef);
-        double freshBalance = (freshSnapshot.data()?['totalFund'] ?? 0.0).toDouble();
+        final communityDoc = await transaction.get(communityRef);
+        if (!communityDoc.exists) throw Exception("Community not found");
 
-        if (freshBalance < loan.amount) throw Exception("Insufficient fund!");
+        double currentFund = (communityDoc.data()?['totalFund'] ?? 0.0).toDouble();
 
-        double newFund = freshBalance - loan.amount;
+        if (currentFund < loan.amount) {
+          throw Exception("Insufficient fund! Available: ৳$currentFund");
+        }
+
+        double newFund = currentFund - loan.amount;
+
+        // কমিউনিটি ফান্ড আপডেট
         transaction.update(communityRef, {'totalFund': newFund});
-        transaction.update(loanRef, {'status': 'approved'});
+
+        // লোন আপডেট (Approved + Lender Shares)
+        transaction.update(loanRef, {
+          'status': 'approved',
+          'lenderShares': calculatedLenderShares, // ✅ শেয়ার সেভ করা হলো
+        });
       });
 
       return right(null);
@@ -87,6 +119,8 @@ class LoanRepository {
 
         transaction.update(communityRef, {'totalFund': newFund});
         transaction.update(loanRef, {'status': 'repaid'});
+        // Repaid হলে শেয়ার আর লক থাকবে না, কিন্তু হিস্ট্রির জন্য আমরা মুছছি না,
+        // UI তে স্ট্যাটাস চেক করে লক ব্যালেন্স ০ দেখানো হবে।
       });
 
       return right(null);
@@ -95,7 +129,6 @@ class LoanRepository {
     }
   }
 
-  // ✅ NEW: Delete Loan (Only if Pending)
   FutureEither<void> deleteLoan(String loanId) async {
     try {
       await _firestore.collection('loans').doc(loanId).delete();
@@ -105,7 +138,6 @@ class LoanRepository {
     }
   }
 
-  // ✅ NEW: Update Loan (Only if Pending)
   FutureEither<void> updateLoan(LoanModel loan) async {
     try {
       await _firestore.collection('loans').doc(loan.id).update(loan.toMap());

@@ -58,6 +58,7 @@ class LoanController extends StateNotifier<bool> {
         requestDate: DateTime.now(),
         repaymentDate: repaymentDate,
         status: 'pending',
+        lenderShares: {}, // ✅ Initialize empty shares
       );
 
       final res = await _loanRepository.requestLoan(loan);

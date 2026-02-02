@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
-import 'package:stake_grow/features/community/presentation/transaction_providers.dart'; // ✅ Imported for Realtime Data
+import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
@@ -23,7 +23,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ 1. Watch Real-time Community Data
     final communityAsync = ref.watch(communityDetailsProvider(community.id));
 
     return communityAsync.when(
@@ -34,7 +33,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
         final isAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
 
         final statsAsync = ref.watch(userStatsProvider(liveCommunity));
-        // ✅ 2. Watch Real-time Loan Data (Fixes non-updating Loan Card)
         final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
 
         return Scaffold(
@@ -58,7 +56,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 loading: () => const Loader(),
                 error: (e, s) => Center(child: Text('Error loading loans: $e')),
                 data: (allLoans) {
-                  // Filter loans for "My Loans" card
                   final myLoans = allLoans.where((l) => l.borrowerId == currentUser?.uid).toList();
 
                   return SingleChildScrollView(
@@ -66,7 +63,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. Hero Card (Real-time Fund)
+                        // 1. Hero Card
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(24),
@@ -116,7 +113,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
 
-                        // 5. Profit/Loss & Deposit Card
+                        // 5. Profit/Loss Card
                         _buildProfitLossCard(stats),
                         const SizedBox(height: 12),
 
@@ -128,17 +125,21 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         _buildInvestmentCard(context, stats, liveCommunity),
                         const SizedBox(height: 16),
 
-                        // ✅ 8. Admin Loan Overview (New)
+                        // 8. Active Lending Portfolio (Correctly Called Here)
+                        _buildActiveLendingCard(context, stats),
+                        const SizedBox(height: 16),
+
+                        // 9. Admin Loan Overview
                         if (isAdmin) ...[
                           _buildAdminLoanOverviewCard(context, allLoans),
                           const SizedBox(height: 16),
                         ],
 
-                        // ✅ 9. My Loan Overview (Real-time)
+                        // 10. My Loan Overview
                         _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
                         const SizedBox(height: 30),
 
-                        // 10. Quick Actions
+                        // 11. Quick Actions
                         const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                         const SizedBox(height: 16),
                         Row(
@@ -150,19 +151,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
                                 'isMonthlyDisabled': stats.isCurrentMonthPaid,
                               });
                             }),
-
                             _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: liveCommunity.id); }),
-
                             _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
                               if (isAdmin) { context.push('/create-investment', extra: liveCommunity.id); }
                               else { context.push('/investment-history', extra: liveCommunity.id); }
                             }),
-
                             _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
                               if (isAdmin) { context.push('/create-activity', extra: liveCommunity.id); }
                               else { context.push('/activity-history', extra: liveCommunity.id); }
                             }),
-
                             if (isAdmin) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: liveCommunity.id); }),
                           ],
                         ),
@@ -180,6 +177,74 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  Widget _buildActiveLendingCard(BuildContext context, UserStats stats) {
+    if (stats.lockedInLoan == 0) return const SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.teal.shade200),
+        boxShadow: [BoxShadow(color: Colors.teal.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.handshake, color: Colors.teal, size: 28),
+              const SizedBox(width: 10),
+              const Text("Money Locked in Loans", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Text("৳ ${stats.lockedInLoan.toStringAsFixed(0)}",
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const Text("Currently lent to members", style: TextStyle(color: Colors.grey, fontSize: 12)),
+
+          const SizedBox(height: 15),
+          const Divider(),
+          const SizedBox(height: 5),
+          const Text("Active Borrowers:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 5),
+
+          ...stats.myFundedLoans.take(3).map((loan) {
+            final daysLeft = loan.repaymentDate.difference(DateTime.now()).inDays;
+            final myShare = loan.lenderShares[FirebaseAuth.instance.currentUser?.uid] ?? 0;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(loan.borrowerName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(daysLeft > 0 ? "$daysLeft days remaining" : "Overdue",
+                            style: TextStyle(fontSize: 10, color: daysLeft > 0 ? Colors.grey : Colors.red)),
+                      ],
+                    ),
+                  ),
+                  Text("৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                ],
+              ),
+            );
+          }),
+
+          if (stats.myFundedLoans.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Center(child: Text("+ ${stats.myFundedLoans.length - 3} more", style: const TextStyle(fontSize: 10, color: Colors.grey))),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildProfitLossCard(UserStats stats) {
     double totalDeposited = stats.monthlyDonated + stats.randomDonated;
@@ -304,19 +369,16 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ New Widget: Admin Loan Overview
   Widget _buildAdminLoanOverviewCard(BuildContext context, List<LoanModel> allLoans) {
     return _buildLoanSummaryCard(context, allLoans, null, isMyLoan: false);
   }
 
-  // ✅ Updated: Generic Loan Summary Card (Used for both My Loans & Admin Overview)
   Widget _buildLoanSummaryCard(BuildContext context, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan}) {
     final pending = loans.where((l) => l.status == 'pending').toList();
     final active = loans.where((l) => l.status == 'approved').toList();
     final repaid = loans.where((l) => l.status == 'repaid').toList();
     final activeAmount = active.fold(0.0, (sum, item) => sum + item.amount);
 
-    // For Admin view, we don't show "No History" if empty, just show zeros or hide
     if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty) {
       return _buildStatCard(
         icon: Icons.request_quote,
@@ -366,7 +428,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (active.isNotEmpty && (pending.isNotEmpty || repaid.isNotEmpty)) const Divider(height: 1),
           if (pending.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan), // Only my loans are editable here
+              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: _buildBreakdownRow("Pending Requests", pending.fold(0, (sum, item) => sum + item.amount), "${pending.length} Pending", Colors.orange),
@@ -490,6 +552,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 requestDate: loan.requestDate,
                 repaymentDate: loan.repaymentDate,
                 status: loan.status,
+                // ✅ FIX: Required parameter passed
+                lenderShares: loan.lenderShares,
               );
 
               ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);

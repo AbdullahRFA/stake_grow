@@ -9,13 +9,14 @@ import 'package:stake_grow/features/loan/data/loan_repository.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 
 class UserStats {
-  final double totalDonated; // এটা এখন Liquid Balance বোঝাবে
-  final double totalLifetimeContributed; // মোট কত দিয়েছে (লকড সহ)
+  final double totalDonated; // Liquid Balance
+  final double totalLifetimeContributed;
   final double contributionPercentage;
 
-  // Investment Stats
-  final double lockedInInvestment; // ইনভেস্ট করা টাকা
-  final double activeInvestmentProfitExpectation; // প্রত্যাশিত লাভ (অপশনাল)
+  final double lockedInInvestment;
+  final double lockedInLoan; // ✅ NEW FIELD
+
+  final double activeInvestmentProfitExpectation;
 
   final double monthlyDonated;
   final double randomDonated;
@@ -27,7 +28,11 @@ class UserStats {
   final List<LoanModel> pendingLoans;
   final List<LoanModel> activeLoans;
   final List<LoanModel> repaidLoans;
-  final double activeLoanAmount;
+
+  // এই লিস্টটি ড্যাশবোর্ডে দেখানোর জন্য যে কোন লোনগুলোতে আমার টাকা আছে
+  final List<LoanModel> myFundedLoans; // ✅ NEW FIELD
+
+  final double activeLoanAmount; // আমি যা লোন নিয়েছি
   final bool isCurrentMonthPaid;
 
   UserStats({
@@ -35,6 +40,7 @@ class UserStats {
     required this.totalLifetimeContributed,
     required this.contributionPercentage,
     required this.lockedInInvestment,
+    required this.lockedInLoan, // ✅
     required this.activeInvestmentProfitExpectation,
     required this.monthlyDonated,
     required this.randomDonated,
@@ -45,6 +51,7 @@ class UserStats {
     required this.pendingLoans,
     required this.activeLoans,
     required this.repaidLoans,
+    required this.myFundedLoans, // ✅
     required this.activeLoanAmount,
     required this.isCurrentMonthPaid,
   });
@@ -53,11 +60,12 @@ class UserStats {
 final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref, community) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
+    // Return empty stats
     return Stream.value(UserStats(
       totalDonated: 0, totalLifetimeContributed: 0, contributionPercentage: 0,
-      lockedInInvestment: 0, activeInvestmentProfitExpectation: 0,
+      lockedInInvestment: 0, lockedInLoan: 0, activeInvestmentProfitExpectation: 0,
       monthlyDonated: 0, randomDonated: 0, monthlyPercent: 0, randomPercent: 0,
-      monthlyList: [], randomList: [], pendingLoans: [], activeLoans: [], repaidLoans: [],
+      monthlyList: [], randomList: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [],
       activeLoanAmount: 0, isCurrentMonthPaid: false,
     ));
   }
@@ -68,64 +76,76 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
 
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
-
-    // 1. Calculate Total Net Contribution (Donations + Profit - Loss)
     double netContribution = myDonations.fold(0, (sum, item) => sum + item.amount);
 
-    // 2. Fetch Active Investments to calculate Locked Amount
+    // --- Investments Calculation ---
     final investments = await investRepo.getInvestments(community.id).first;
     final activeInvestments = investments.where((i) => i.status == 'active').toList();
 
-    double myLockedAmount = 0.0;
+    double myLockedInInvestment = 0.0;
     double expectedProfitShare = 0.0;
 
     for (var invest in activeInvestments) {
       if (invest.userShares.containsKey(user.uid)) {
         double share = invest.userShares[user.uid]!;
-        myLockedAmount += share;
-
-        // Expected profit calc
+        myLockedInInvestment += share;
         double shareRatio = share / invest.investedAmount;
         expectedProfitShare += invest.expectedProfit * shareRatio;
       }
     }
 
-    // 3. Liquid Balance (Total - Locked)
-    double liquidBalance = netContribution - myLockedAmount;
+    // --- Loans Calculation (Active Lending) ---
+    final allLoans = await loanRepo.getCommunityLoans(community.id).first;
+
+    // আমার নেওয়া লোন
+    final myTakenLoans = allLoans.where((l) => l.borrowerId == user.uid).toList();
+    final pending = myTakenLoans.where((l) => l.status == 'pending').toList();
+    final activeTaken = myTakenLoans.where((l) => l.status == 'approved').toList();
+    final repaid = myTakenLoans.where((l) => l.status == 'repaid').toList();
+    double activeDebt = activeTaken.fold(0, (sum, item) => sum + item.amount);
+
+    // ✅ আমি অন্যদের লোন দিয়েছি (Active Lending)
+    double myLockedInLoan = 0.0;
+    List<LoanModel> fundedLoans = [];
+
+    // কমিউনিটির সব একটিভ লোন চেক করা
+    final allActiveLoans = allLoans.where((l) => l.status == 'approved').toList();
+
+    for (var loan in allActiveLoans) {
+      if (loan.lenderShares.containsKey(user.uid)) {
+        double share = loan.lenderShares[user.uid]!;
+        myLockedInLoan += share;
+        fundedLoans.add(loan);
+      }
+    }
+
+    // ✅ Liquid Balance Calculation
+    // Total - (Invested + Lent)
+    double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan;
 
     // --- Others ---
     final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
     final randomList = myDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
-
     final now = DateTime.now();
     bool isPaid = monthlyList.any((d) => d.timestamp.month == now.month && d.timestamp.year == now.year);
-
     double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
     double randomTotal = randomList.fold(0, (sum, item) => sum + item.amount);
-
     double monthlyPct = netContribution == 0 ? 0 : (monthlyTotal / netContribution) * 100;
     double randomPct = netContribution == 0 ? 0 : (randomTotal / netContribution) * 100;
 
-    // Community Total Asset (Liquid + Invested) - for Percentage Calculation
-    // community.totalFund is Liquid. Need to add Total Active Investments.
+    // Community Total Asset (Liquid + Invested + Loaned Out)
     double totalActiveInvested = activeInvestments.fold(0, (sum, i) => sum + i.investedAmount);
-    double totalCommunityAssets = community.totalFund + totalActiveInvested;
+    double totalActiveLoaned = allActiveLoans.fold(0, (sum, l) => sum + l.amount);
+    double totalCommunityAssets = community.totalFund + totalActiveInvested + totalActiveLoaned;
 
     double commPercentage = totalCommunityAssets == 0 ? 0 : (netContribution / totalCommunityAssets) * 100;
 
-    // --- Loans ---
-    final loans = await loanRepo.getCommunityLoans(community.id).first;
-    final myLoans = loans.where((l) => l.borrowerId == user.uid).toList();
-    final pending = myLoans.where((l) => l.status == 'pending').toList();
-    final active = myLoans.where((l) => l.status == 'approved').toList();
-    final repaid = myLoans.where((l) => l.status == 'repaid').toList();
-    double activeDebt = active.fold(0, (sum, item) => sum + item.amount);
-
     return UserStats(
-      totalDonated: liquidBalance, // User sees this decreased when invested
-      totalLifetimeContributed: netContribution, // Total ownership
+      totalDonated: liquidBalance, // ✅ Updated Logic
+      totalLifetimeContributed: netContribution,
       contributionPercentage: commPercentage,
-      lockedInInvestment: myLockedAmount, // New Field
+      lockedInInvestment: myLockedInInvestment,
+      lockedInLoan: myLockedInLoan, // ✅
       activeInvestmentProfitExpectation: expectedProfitShare,
       monthlyDonated: monthlyTotal,
       randomDonated: randomTotal,
@@ -134,8 +154,9 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       monthlyList: monthlyList,
       randomList: randomList,
       pendingLoans: pending,
-      activeLoans: active,
+      activeLoans: activeTaken,
       repaidLoans: repaid,
+      myFundedLoans: fundedLoans, // ✅
       activeLoanAmount: activeDebt,
       isCurrentMonthPaid: isPaid,
     );
