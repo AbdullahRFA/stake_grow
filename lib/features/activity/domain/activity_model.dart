@@ -1,11 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class ActivityModel {
   final String id;
   final String communityId;
-  final String title; // কাজের নাম (যেমন: Winter Cloth Distribution)
+  final String title;
   final String details;
-  final double cost; // কত খরচ হবে
+  final double cost;
   final DateTime date;
-  final String type; // 'Social Work', 'Event', 'Maintenance'
+  final String type;
+
+  // ✅ NEW: Tracks how much was deducted from each user (UID -> Amount)
+  final Map<String, double> expenseShares;
 
   ActivityModel({
     required this.id,
@@ -15,6 +20,7 @@ class ActivityModel {
     required this.cost,
     required this.date,
     required this.type,
+    required this.expenseShares, // ✅ Required
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +32,7 @@ class ActivityModel {
       'cost': cost,
       'date': date.millisecondsSinceEpoch,
       'type': type,
+      'expenseShares': expenseShares, // ✅ Saved to DB
     };
   }
 
@@ -38,6 +45,10 @@ class ActivityModel {
       cost: (map['cost'] ?? 0.0).toDouble(),
       date: DateTime.fromMillisecondsSinceEpoch(map['date']),
       type: map['type'] ?? 'Social Work',
+      // ✅ Load shares safely
+      expenseShares: (map['expenseShares'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, (value as num).toDouble()),
+      ) ?? {},
     );
   }
 }

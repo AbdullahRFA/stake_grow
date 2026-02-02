@@ -16,6 +16,8 @@ class ActivityController extends StateNotifier<bool> {
 
   ActivityController({required ActivityRepository repo}) : _repo = repo, super(false);
 
+  // ... imports
+
   void createActivity({
     required String communityId,
     required String title,
@@ -38,7 +40,10 @@ class ActivityController extends StateNotifier<bool> {
         cost: cost,
         date: DateTime.now(),
         type: type,
+        expenseShares: {}, // ✅ Initialize empty, Repo will calculate
       );
+
+      // ... rest of the code same as before
 
       final res = await _repo.createActivity(activity);
       state = false;

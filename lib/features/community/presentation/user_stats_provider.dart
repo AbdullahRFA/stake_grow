@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:stake_grow/features/activity/data/activity_repository.dart';
+import 'package:stake_grow/features/activity/domain/activity_model.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/donation/data/donation_repository.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
@@ -14,7 +16,8 @@ class UserStats {
   final double contributionPercentage;
 
   final double lockedInInvestment;
-  final double lockedInLoan; // ✅ NEW FIELD
+  final double lockedInLoan;
+  final double totalExpenseShare;
 
   final double activeInvestmentProfitExpectation;
 
@@ -28,11 +31,10 @@ class UserStats {
   final List<LoanModel> pendingLoans;
   final List<LoanModel> activeLoans;
   final List<LoanModel> repaidLoans;
+  final List<LoanModel> myFundedLoans;
+  final List<ActivityModel> myImpactActivities;
 
-  // এই লিস্টটি ড্যাশবোর্ডে দেখানোর জন্য যে কোন লোনগুলোতে আমার টাকা আছে
-  final List<LoanModel> myFundedLoans; // ✅ NEW FIELD
-
-  final double activeLoanAmount; // আমি যা লোন নিয়েছি
+  final double activeLoanAmount;
   final bool isCurrentMonthPaid;
 
   UserStats({
@@ -40,7 +42,8 @@ class UserStats {
     required this.totalLifetimeContributed,
     required this.contributionPercentage,
     required this.lockedInInvestment,
-    required this.lockedInLoan, // ✅
+    required this.lockedInLoan,
+    required this.totalExpenseShare,
     required this.activeInvestmentProfitExpectation,
     required this.monthlyDonated,
     required this.randomDonated,
@@ -51,7 +54,8 @@ class UserStats {
     required this.pendingLoans,
     required this.activeLoans,
     required this.repaidLoans,
-    required this.myFundedLoans, // ✅
+    required this.myFundedLoans,
+    required this.myImpactActivities,
     required this.activeLoanAmount,
     required this.isCurrentMonthPaid,
   });
@@ -60,12 +64,11 @@ class UserStats {
 final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref, community) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    // Return empty stats
     return Stream.value(UserStats(
       totalDonated: 0, totalLifetimeContributed: 0, contributionPercentage: 0,
-      lockedInInvestment: 0, lockedInLoan: 0, activeInvestmentProfitExpectation: 0,
+      lockedInInvestment: 0, lockedInLoan: 0, totalExpenseShare: 0, activeInvestmentProfitExpectation: 0,
       monthlyDonated: 0, randomDonated: 0, monthlyPercent: 0, randomPercent: 0,
-      monthlyList: [], randomList: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [],
+      monthlyList: [], randomList: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [], myImpactActivities: [],
       activeLoanAmount: 0, isCurrentMonthPaid: false,
     ));
   }
@@ -73,18 +76,17 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
   final donationRepo = ref.watch(donationRepositoryProvider);
   final loanRepo = ref.watch(loanRepositoryProvider);
   final investRepo = ref.watch(investmentRepositoryProvider);
+  final activityRepo = ref.watch(activityRepositoryProvider);
 
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
     final myDonations = donations.where((d) => d.senderId == user.uid).toList();
     double netContribution = myDonations.fold(0, (sum, item) => sum + item.amount);
 
-    // --- Investments Calculation ---
+    // --- Investments ---
     final investments = await investRepo.getInvestments(community.id).first;
     final activeInvestments = investments.where((i) => i.status == 'active').toList();
-
     double myLockedInInvestment = 0.0;
     double expectedProfitShare = 0.0;
-
     for (var invest in activeInvestments) {
       if (invest.userShares.containsKey(user.uid)) {
         double share = invest.userShares[user.uid]!;
@@ -94,34 +96,39 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       }
     }
 
-    // --- Loans Calculation (Active Lending) ---
+    // --- Loans ---
     final allLoans = await loanRepo.getCommunityLoans(community.id).first;
-
-    // আমার নেওয়া লোন
     final myTakenLoans = allLoans.where((l) => l.borrowerId == user.uid).toList();
     final pending = myTakenLoans.where((l) => l.status == 'pending').toList();
     final activeTaken = myTakenLoans.where((l) => l.status == 'approved').toList();
     final repaid = myTakenLoans.where((l) => l.status == 'repaid').toList();
     double activeDebt = activeTaken.fold(0, (sum, item) => sum + item.amount);
 
-    // ✅ আমি অন্যদের লোন দিয়েছি (Active Lending)
     double myLockedInLoan = 0.0;
     List<LoanModel> fundedLoans = [];
-
-    // কমিউনিটির সব একটিভ লোন চেক করা
     final allActiveLoans = allLoans.where((l) => l.status == 'approved').toList();
-
     for (var loan in allActiveLoans) {
       if (loan.lenderShares.containsKey(user.uid)) {
-        double share = loan.lenderShares[user.uid]!;
-        myLockedInLoan += share;
+        myLockedInLoan += loan.lenderShares[user.uid]!;
         fundedLoans.add(loan);
       }
     }
 
-    // ✅ Liquid Balance Calculation
-    // Total - (Invested + Lent)
-    double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan;
+    // --- Expenses ---
+    final allActivities = await activityRepo.getActivities(community.id).first;
+    double myTotalExpenseShare = 0.0;
+    List<ActivityModel> impactActivities = [];
+
+    for (var activity in allActivities) {
+      if (activity.expenseShares.containsKey(user.uid)) {
+        double share = activity.expenseShares[user.uid]!;
+        myTotalExpenseShare += share;
+        impactActivities.add(activity);
+      }
+    }
+
+    // Liquid Balance Calculation
+    double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan - myTotalExpenseShare;
 
     // --- Others ---
     final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
@@ -133,19 +140,26 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
     double monthlyPct = netContribution == 0 ? 0 : (monthlyTotal / netContribution) * 100;
     double randomPct = netContribution == 0 ? 0 : (randomTotal / netContribution) * 100;
 
-    // Community Total Asset (Liquid + Invested + Loaned Out)
     double totalActiveInvested = activeInvestments.fold(0, (sum, i) => sum + i.investedAmount);
     double totalActiveLoaned = allActiveLoans.fold(0, (sum, l) => sum + l.amount);
+
+    // Total Community Assets = Current Cash + IOUs (Loans + Investments)
     double totalCommunityAssets = community.totalFund + totalActiveInvested + totalActiveLoaned;
 
-    double commPercentage = totalCommunityAssets == 0 ? 0 : (netContribution / totalCommunityAssets) * 100;
+    // ✅ FIX: Calculate percentage based on Remaining Equity (Contribution - Expenses)
+    double myRemainingEquity = netContribution - myTotalExpenseShare;
+
+    double commPercentage = totalCommunityAssets == 0
+        ? 0
+        : (myRemainingEquity / totalCommunityAssets) * 100;
 
     return UserStats(
-      totalDonated: liquidBalance, // ✅ Updated Logic
+      totalDonated: liquidBalance,
       totalLifetimeContributed: netContribution,
-      contributionPercentage: commPercentage,
+      contributionPercentage: commPercentage, // ✅ Now uses corrected value
       lockedInInvestment: myLockedInInvestment,
-      lockedInLoan: myLockedInLoan, // ✅
+      lockedInLoan: myLockedInLoan,
+      totalExpenseShare: myTotalExpenseShare,
       activeInvestmentProfitExpectation: expectedProfitShare,
       monthlyDonated: monthlyTotal,
       randomDonated: randomTotal,
@@ -156,7 +170,8 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       pendingLoans: pending,
       activeLoans: activeTaken,
       repaidLoans: repaid,
-      myFundedLoans: fundedLoans, // ✅
+      myFundedLoans: fundedLoans,
+      myImpactActivities: impactActivities,
       activeLoanAmount: activeDebt,
       isCurrentMonthPaid: isPaid,
     );

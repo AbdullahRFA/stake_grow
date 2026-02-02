@@ -18,29 +18,63 @@ class ActivityRepository {
       final communityRef = _firestore.collection('communities').doc(activity.communityId);
       final activityRef = _firestore.collection('activities').doc(activity.id);
 
-      // ১. অপটিমিস্টিক চেক (ট্রানজেকশনের আগে)
-      final snapshot = await communityRef.get();
-      if (!snapshot.exists) return left(Failure("Community not found"));
+      // 1. Fetch Donation History to calculate shares
+      final donationsSnapshot = await _firestore
+          .collection('donations')
+          .where('communityId', isEqualTo: activity.communityId)
+          .get();
 
-      double currentBalance = (snapshot.data()?['totalFund'] ?? 0.0).toDouble();
+      Map<String, double> userTotalDonations = {};
+      double totalPool = 0.0;
 
-      if (currentBalance < activity.cost) {
-        return left(Failure("Insufficient funds for this activity! Available: ৳$currentBalance"));
+      for (var doc in donationsSnapshot.docs) {
+        final data = doc.data();
+        final uid = data['senderId'];
+        final amount = (data['amount'] ?? 0.0).toDouble();
+        userTotalDonations[uid] = (userTotalDonations[uid] ?? 0.0) + amount;
+        totalPool += amount;
       }
 
-      // ২. ACID Transaction
-      await _firestore.runTransaction((transaction) async {
-        final freshSnapshot = await transaction.get(communityRef);
-        double freshBalance = (freshSnapshot.data()?['totalFund'] ?? 0.0).toDouble();
+      // 2. Calculate Expense Shares for each user
+      Map<String, double> calculatedExpenseShares = {};
+      if (totalPool > 0) {
+        userTotalDonations.forEach((uid, totalDonated) {
+          if (totalDonated > 0) {
+            double sharePercentage = totalDonated / totalPool;
+            double shareAmount = activity.cost * sharePercentage;
+            // Round to 2 decimal places
+            calculatedExpenseShares[uid] = double.parse(shareAmount.toStringAsFixed(2));
+          }
+        });
+      }
 
-        if (freshBalance < activity.cost) {
-          throw Exception("Insufficient funds!");
+      // 3. Create updated model with calculated shares
+      final activityWithShares = ActivityModel(
+        id: activity.id,
+        communityId: activity.communityId,
+        title: activity.title,
+        details: activity.details,
+        cost: activity.cost,
+        date: activity.date,
+        type: activity.type,
+        expenseShares: calculatedExpenseShares, // ✅ Attached shares
+      );
+
+      // 4. Run Transaction (Deduct Fund & Save Activity)
+      await _firestore.runTransaction((transaction) async {
+        final communityDoc = await transaction.get(communityRef);
+        if (!communityDoc.exists) throw Exception("Community not found");
+
+        double currentFund = (communityDoc.data()?['totalFund'] ?? 0.0).toDouble();
+
+        if (currentFund < activity.cost) {
+          throw Exception("Insufficient funds! Available: ৳$currentFund");
         }
 
-        double newFund = freshBalance - activity.cost; // ফান্ড থেকে খরচ কমানো হলো
+        double newFund = currentFund - activity.cost;
 
         transaction.update(communityRef, {'totalFund': newFund});
-        transaction.set(activityRef, activity.toMap());
+        transaction.set(activityRef, activityWithShares.toMap());
       });
 
       return right(null);
@@ -48,7 +82,7 @@ class ActivityRepository {
       return left(Failure(e.toString()));
     }
   }
-  // খরচের হিসাব দেখার স্ট্রিম
+
   Stream<List<ActivityModel>> getActivities(String communityId) {
     return _firestore
         .collection('activities')

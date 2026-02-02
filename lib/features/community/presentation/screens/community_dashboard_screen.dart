@@ -12,6 +12,7 @@ import 'package:stake_grow/features/community/presentation/user_stats_provider.d
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
+import 'package:stake_grow/features/activity/domain/activity_model.dart';
 
 class CommunityDashboardScreen extends ConsumerWidget {
   final CommunityModel community;
@@ -129,17 +130,21 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         _buildActiveLendingCard(context, stats, allLoans, currentUser?.uid),
                         const SizedBox(height: 16),
 
-                        // 9. Admin Loan Overview
+                        // 9. Activity/Expense Impact Card
+                        _buildExpenseImpactCard(context, stats, liveCommunity.id),
+                        const SizedBox(height: 16),
+
+                        // 10. Admin Loan Overview
                         if (isAdmin) ...[
                           _buildAdminLoanOverviewCard(context, allLoans, ref),
                           const SizedBox(height: 16),
                         ],
 
-                        // 10. My Loan Overview
+                        // 11. My Loan Overview
                         _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
                         const SizedBox(height: 30),
 
-                        // 11. Quick Actions
+                        // 12. Quick Actions
                         const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                         const SizedBox(height: 16),
                         Row(
@@ -177,6 +182,88 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  Widget _buildExpenseImpactCard(BuildContext context, UserStats stats, String communityId) {
+    if (stats.totalExpenseShare == 0) return const SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.red.shade100),
+        boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.volunteer_activism, color: Colors.redAccent, size: 28),
+              const SizedBox(width: 10),
+              const Text("My Expense Contribution", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 15),
+
+          Text("৳ ${stats.totalExpenseShare.toStringAsFixed(0)}",
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const Text("Used for community activities", style: TextStyle(color: Colors.grey, fontSize: 12)),
+
+          const SizedBox(height: 15),
+          const Divider(),
+          const SizedBox(height: 5),
+          const Text("Recent Contributions:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 5),
+
+          ...stats.myImpactActivities.take(3).map((activity) {
+            final myShare = activity.expenseShares[FirebaseAuth.instance.currentUser?.uid] ?? 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(activity.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(DateFormat('dd MMM yyyy').format(activity.date),
+                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  Text("- ৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                ],
+              ),
+            );
+          }),
+
+          if (stats.myImpactActivities.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Center(child: Text("+ ${stats.myImpactActivities.length - 3} more", style: const TextStyle(fontSize: 10, color: Colors.grey))),
+            ),
+
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                context.push('/activity-history', extra: communityId);
+              },
+              icon: const Icon(Icons.list_alt, size: 16, color: Colors.redAccent),
+              label: const Text("View All Activities", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildActiveLendingCard(BuildContext context, UserStats stats, List<LoanModel> allLoans, String? myUid) {
     final myRepaidLending = allLoans.where((l) =>
@@ -572,11 +659,9 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           children: [
                             const Text("⚠️ Late Repayment Rules:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
                             const SizedBox(height: 4),
-                            const Text("▶ ডেড লাইন পার হলে প্রথম ৫ দিনের মধ্য পে করলে :\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
+                            const Text("▶ deadline par hole prothom 5 diner moddhe rapy korle:\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
                             const SizedBox(height: 4),
-                            const Text("▶ ৬ষ্ট দিন থেকে ১০ম দিনের মধ্য পে করলে :\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
-                            const SizedBox(height: 8),
-                            const Text("▶ ১০ম দিন পার হলে কমিটি যেই সিদ্ধান্ত নিবে তার সাথে আমি একমত ", style: TextStyle(fontSize: 11, color: Colors.red)),
+                            const Text("▶ prothom 5 din par hole porer 5 diner jonne:\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
                             const SizedBox(height: 8),
                             // ✅ Countdown for Repayment
                             Row(
