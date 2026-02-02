@@ -18,12 +18,42 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Communities'),
         actions: [
-          IconButton(
-            onPressed: () {
-              ref.read(authRepositoryProvider).logOut();
+          // ✅ UPDATE: User Account Actions (Profile & Logout)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.account_circle, size: 32), // Profile Icon
+            onSelected: (value) {
+              if (value == 'profile') {
+                context.push('/edit-profile'); // Navigate to Edit Profile
+              } else if (value == 'logout') {
+                ref.read(authRepositoryProvider).logOut(); // Logout Action
+              }
             },
-            icon: const Icon(Icons.logout),
+            itemBuilder: (BuildContext context) {
+              return [
+                const PopupMenuItem(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, color: Colors.teal),
+                      SizedBox(width: 8),
+                      Text('Edit Profile'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Log Out'),
+                    ],
+                  ),
+                ),
+              ];
+            },
           ),
+          const SizedBox(width: 10),
         ],
       ),
       // 2. AsyncValue হ্যান্ডলিং (Loading, Error, Data)
@@ -52,7 +82,6 @@ class HomeScreen extends ConsumerWidget {
               return CommunityCard(
                 community: community,
                 onTap: () {
-                  // ✅ UPDATE: ক্লিক করলে ড্যাশবোর্ডে নিয়ে যাবে এবং ডাটা সাথে নিবে
                   context.push('/community-dashboard', extra: community);
                 },
               );
