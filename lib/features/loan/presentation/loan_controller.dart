@@ -2,11 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stake_grow/core/utils/utils.dart';
+import 'package:stake_grow/features/auth/data/auth_repository.dart'; // Import Auth Repo
 import 'package:stake_grow/features/loan/data/loan_repository.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 import 'package:uuid/uuid.dart';
 
-// কমিউনিটি অনুযায়ী লোন দেখার প্রভাইডার
 final communityLoansProvider = StreamProvider.family((ref, String communityId) {
   final loanRepo = ref.watch(loanRepositoryProvider);
   return loanRepo.getCommunityLoans(communityId);
@@ -14,14 +14,19 @@ final communityLoansProvider = StreamProvider.family((ref, String communityId) {
 
 final loanControllerProvider = StateNotifierProvider<LoanController, bool>((ref) {
   final loanRepo = ref.watch(loanRepositoryProvider);
-  return LoanController(loanRepository: loanRepo);
+  final authRepo = ref.watch(authRepositoryProvider); // ✅ Inject Auth Repo
+  return LoanController(loanRepository: loanRepo, authRepository: authRepo);
 });
 
 class LoanController extends StateNotifier<bool> {
   final LoanRepository _loanRepository;
+  final AuthRepository _authRepository; // ✅ Added
 
-  LoanController({required LoanRepository loanRepository})
-      : _loanRepository = loanRepository,
+  LoanController({
+    required LoanRepository loanRepository,
+    required AuthRepository authRepository, // ✅ Added
+  })  : _loanRepository = loanRepository,
+        _authRepository = authRepository,
         super(false);
 
   void requestLoan({
@@ -35,18 +40,26 @@ class LoanController extends StateNotifier<bool> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
+      // ✅ FIX: Fetch actual user name from Firestore
+      String userName = user.displayName ?? 'Member';
+
+      final userModel = await _authRepository.getUserData(user.uid);
+      if (userModel != null) {
+        userName = userModel.name;
+      }
+
       final loanId = const Uuid().v1();
 
       final loan = LoanModel(
         id: loanId,
         communityId: communityId,
         borrowerId: user.uid,
-        borrowerName: user.displayName ?? 'Member',
+        borrowerName: userName, // ✅ Using fetched name
         amount: amount,
         reason: reason,
         requestDate: DateTime.now(),
         repaymentDate: repaymentDate,
-        status: 'pending', // শুরুতে পেন্ডিং থাকবে
+        status: 'pending',
       );
 
       final res = await _loanRepository.requestLoan(loan);
@@ -64,12 +77,12 @@ class LoanController extends StateNotifier<bool> {
       showSnackBar(context, 'User not logged in');
     }
   }
+
   void approveLoan({
     required LoanModel loan,
     required BuildContext context,
   }) async {
     state = true;
-    // এখানে আমরা ধরে নিচ্ছি UI তে আগেই চেক করা হয়েছে ইউজার এডমিন কিনা
     final res = await _loanRepository.approveLoan(loan);
     state = false;
 
@@ -77,11 +90,11 @@ class LoanController extends StateNotifier<bool> {
           (l) => showSnackBar(context, l.message),
           (r) {
         showSnackBar(context, 'Loan Approved & Fund Disbursed! ✅');
-        Navigator.pop(context); // ডায়ালগ বন্ধ করা
+        Navigator.pop(context);
       },
     );
   }
-  // ✅ NEW: Repay Loan Function
+
   void repayLoan({
     required LoanModel loan,
     required BuildContext context,
@@ -94,7 +107,7 @@ class LoanController extends StateNotifier<bool> {
           (l) => showSnackBar(context, l.message),
           (r) {
         showSnackBar(context, 'Loan Repaid & Fund Restored! 💰');
-        Navigator.pop(context); // ডায়ালগ বন্ধ
+        Navigator.pop(context);
       },
     );
   }
