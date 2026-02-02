@@ -1,4 +1,4 @@
-import 'dart:async'; // ✅ Timer এর জন্য
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +10,7 @@ import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
+import 'package:stake_grow/features/loan/presentation/loan_controller.dart'; // ✅ Import Controller
 
 class CommunityDashboardScreen extends ConsumerWidget {
   final CommunityModel community;
@@ -76,7 +77,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // ✅ 2. Due/Warning Card with Live Clock
+                // 2. Due/Warning Card with Live Clock
                 DueWarningCard(stats: stats),
                 const SizedBox(height: 16),
 
@@ -102,8 +103,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 _buildSubscriptionCard(context, stats),
                 const SizedBox(height: 12),
 
-                // 6. Loan Overview Card
-                _buildLoanSummaryCard(context, stats),
+                // 6. ✅ My Loan Overview (Updated)
+                _buildLoanSummaryCard(context, stats, ref),
                 const SizedBox(height: 30),
 
                 // 7. Quick Actions
@@ -112,7 +113,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    // Donate Button
                     _buildActionButton(Icons.volunteer_activism, 'Donate', () {
                       context.push('/create-donation', extra: {
                         'communityId': community.id,
@@ -142,6 +142,198 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  // ✅ Updated Loan Summary Card with Actions
+  Widget _buildLoanSummaryCard(BuildContext context, UserStats stats, WidgetRef ref) {
+    bool hasPending = stats.pendingLoans.isNotEmpty;
+    bool hasActive = stats.activeLoans.isNotEmpty;
+    bool hasRepaid = stats.repaidLoans.isNotEmpty;
+
+    if (!hasPending && !hasActive && !hasRepaid) {
+      return _buildStatCard(
+        icon: Icons.request_quote,
+        color: Colors.grey,
+        title: 'My Loans',
+        value: 'No History',
+        subtitle: 'You have no loan records yet',
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.indigo.withOpacity(0.1),
+                  child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
+                ),
+                const SizedBox(width: 15),
+                const Text("My Loans", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), // ✅ Renamed
+              ],
+            ),
+          ),
+          if (hasActive)
+            InkWell(
+              onTap: () => _showLoanDetails(context, "Active Loans (To be Repaid)", stats.activeLoans, ref, false),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Active Debt (Unpaid)", stats.activeLoanAmount, "${stats.activeLoans.length} Active", Colors.redAccent),
+              ),
+            ),
+          if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
+          if (hasPending)
+            InkWell(
+              // ✅ Pass true to enable actions
+              onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans, ref, true),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Pending Requests", stats.pendingLoans.fold(0, (sum, item) => sum + item.amount), "${stats.pendingLoans.length} Pending", Colors.orange),
+              ),
+            ),
+          if (hasPending && hasRepaid) const Divider(height: 1),
+          if (hasRepaid)
+            InkWell(
+              onTap: () => _showLoanDetails(context, "Repaid History", stats.repaidLoans, ref, false),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow("Repaid Loans", stats.repaidLoans.fold(0, (sum, item) => sum + item.amount), "${stats.repaidLoans.length} Repaid", Colors.green),
+              ),
+            ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  // ✅ Updated Details List to show Edit/Delete
+  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef ref, bool isEditable) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Divider(),
+              Expanded(
+                child: loans.isEmpty
+                    ? const Center(child: Text("No loans found."))
+                    : ListView.builder(
+                  itemCount: loans.length,
+                  itemBuilder: (context, index) {
+                    final loan = loans[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
+                          child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
+                        ),
+                        title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
+                        subtitle: Text('Reason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
+                        isThreeLine: true,
+                        trailing: isEditable
+                            ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () {
+                                Navigator.pop(context); // Close sheet
+                                _showEditDialog(context, ref, loan);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                ref.read(loanControllerProvider.notifier).deleteLoan(loan.id, context);
+                                Navigator.pop(context); // Close sheet
+                              },
+                            ),
+                          ],
+                        )
+                            : null,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ NEW: Edit Dialog
+  void _showEditDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
+    final amountController = TextEditingController(text: loan.amount.toString());
+    final reasonController = TextEditingController(text: loan.reason);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Edit Loan Request"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Amount (৳)"),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(labelText: "Reason"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              final newAmount = double.tryParse(amountController.text) ?? loan.amount;
+              final newReason = reasonController.text.trim();
+
+              final updatedLoan = LoanModel(
+                id: loan.id,
+                communityId: loan.communityId,
+                borrowerId: loan.borrowerId,
+                borrowerName: loan.borrowerName,
+                amount: newAmount,
+                reason: newReason,
+                requestDate: loan.requestDate,
+                repaymentDate: loan.repaymentDate,
+                status: loan.status,
+              );
+
+              ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
+            },
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ... (Other standard widgets: _buildStatCard, _buildSubscriptionCard, etc. remain unchanged) ...
+  // Please keep the existing helper methods here as they were in the previous file.
 
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
     return InkWell(
@@ -228,77 +420,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLoanSummaryCard(BuildContext context, UserStats stats) {
-    bool hasPending = stats.pendingLoans.isNotEmpty;
-    bool hasActive = stats.activeLoans.isNotEmpty;
-    bool hasRepaid = stats.repaidLoans.isNotEmpty;
-
-    if (!hasPending && !hasActive && !hasRepaid) {
-      return _buildStatCard(
-        icon: Icons.request_quote,
-        color: Colors.grey,
-        title: 'Loan Status',
-        value: 'No History',
-        subtitle: 'You have no loan records yet',
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.indigo.withOpacity(0.1),
-                  child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
-                ),
-                const SizedBox(width: 15),
-                const Text("Loan Overview", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
-            ),
-          ),
-          if (hasActive)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Active Loans (To be Repaid)", stats.activeLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Active Debt (Unpaid)", stats.activeLoanAmount, "${stats.activeLoans.length} Active", Colors.redAccent),
-              ),
-            ),
-          if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
-          if (hasPending)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Pending Requests", stats.pendingLoans.fold(0, (sum, item) => sum + item.amount), "${stats.pendingLoans.length} Pending", Colors.orange),
-              ),
-            ),
-          if (hasPending && hasRepaid) const Divider(height: 1),
-          if (hasRepaid)
-            InkWell(
-              onTap: () => _showLoanDetails(context, "Repaid History", stats.repaidLoans),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Repaid Loans", stats.repaidLoans.fold(0, (sum, item) => sum + item.amount), "${stats.repaidLoans.length} Repaid", Colors.green),
-              ),
-            ),
-          const SizedBox(height: 10),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBreakdownRow(String label, double amount, String subLabel, Color labelColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -375,8 +496,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- Bottom Sheets ---
-
   void _showDonationDetails(BuildContext context, String title, List<DonationModel> donations) {
     showModalBottomSheet(
       context: context,
@@ -412,48 +531,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              const Divider(),
-              Expanded(
-                child: loans.isEmpty
-                    ? const Center(child: Text("No loans found."))
-                    : ListView.builder(
-                  itemCount: loans.length,
-                  itemBuilder: (context, index) {
-                    final loan = loans[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 5),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
-                          child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
-                        ),
-                        title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
-                        subtitle: Text('Reason: ${loan.reason}\nDate: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}'),
-                        isThreeLine: true,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Color _getLoanColor(String status) {
     switch (status) {
       case 'approved': return Colors.redAccent;
@@ -464,7 +541,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 }
 
-// ✅ FIXED: StatefulWidget for Live Clock Countdown
+// DueWarningCard (StatefulWidget) stays the same as before
 class DueWarningCard extends StatefulWidget {
   final UserStats stats;
   const DueWarningCard({super.key, required this.stats});
@@ -475,7 +552,7 @@ class DueWarningCard extends StatefulWidget {
 
 class _DueWarningCardState extends State<DueWarningCard> {
   Timer? _timer;
-  String _timeDisplayString = "Loading..."; // UI তে দেখানোর জন্য স্ট্রিং
+  String _timeDisplayString = "Loading...";
   late DateTime _targetDate;
   bool _isOverdue = false;
 
@@ -486,7 +563,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
     _startTimer();
   }
 
-  // যদি প্যারেন্ট উইজেট থেকে stats আপডেট হয় (যেমন পেমেন্ট করার পর), তখন টার্গেট ডেট আপডেট করতে হবে
   @override
   void didUpdateWidget(covariant DueWarningCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -498,17 +574,15 @@ class _DueWarningCardState extends State<DueWarningCard> {
   void _setupTimerState() {
     final now = DateTime.now();
     if (widget.stats.isCurrentMonthPaid) {
-      // Target: Next Month's 1st
       _targetDate = DateTime(now.year, now.month + 1, 1);
     } else {
-      // Target: This Month's 15th
       _targetDate = DateTime(now.year, now.month, 15, 23, 59, 59);
     }
-    _updateTime(); // ইনিশিয়াল আপডেট
+    _updateTime();
   }
 
   void _startTimer() {
-    _timer?.cancel(); // আগের টাইমার থাকলে বন্ধ করুন
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         _updateTime();
@@ -521,7 +595,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
     final difference = _targetDate.difference(now);
 
     if (difference.isNegative) {
-      // Overdue or Cycle passed
       if (mounted) {
         setState(() {
           _isOverdue = true;
@@ -529,9 +602,7 @@ class _DueWarningCardState extends State<DueWarningCard> {
         });
       }
     } else {
-      // Calculate Detailed Breakdown
       String formattedTime = _calculateDetailedBreakdown(_targetDate, now);
-
       if (mounted) {
         setState(() {
           _isOverdue = false;
@@ -541,7 +612,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
     }
   }
 
-  // ম্যানুয়াল ক্যালকুলেশন যাতে বছর, মাস, দিন সঠিক দেখায়
   String _calculateDetailedBreakdown(DateTime target, DateTime now) {
     int years = target.year - now.year;
     int months = target.month - now.month;
@@ -554,7 +624,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
     if (minutes < 0) { minutes += 60; hours--; }
     if (hours < 0) { hours += 24; days--; }
     if (days < 0) {
-      // আগের মাসের মোট দিন বের করা
       final prevMonth = DateTime(target.year, target.month - 1);
       final daysInPrevMonth = DateTime(prevMonth.year, prevMonth.month + 1, 0).day;
       days += daysInPrevMonth;
@@ -562,11 +631,7 @@ class _DueWarningCardState extends State<DueWarningCard> {
     }
     if (months < 0) { months += 12; years--; }
 
-    // সুন্দর ফরম্যাটিং (সিঙ্গেল ডিজিট হলে আগে ০ যোগ করা)
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-
-    // লজিক: যদি বছর বা মাস ০ হয়, তবে সেটা দেখানো জরুরি না হলে বাদ দিতে পারেন,
-    // কিন্তু আপনার রিকোয়ারমেন্ট অনুযায়ী সব দেখানো হলো।
     return "$years Year $months Month $days Days ${twoDigits(hours)} Hours ${twoDigits(minutes)} Min ${twoDigits(seconds)} Sec";
   }
 
@@ -579,8 +644,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
   @override
   Widget build(BuildContext context) {
     final bool isPaid = widget.stats.isCurrentMonthPaid;
-
-    // UI Colors & Styles
     final Color bgColor = isPaid ? Colors.green.shade50 : (_isOverdue ? Colors.red.shade50 : Colors.orange.shade50);
     final Color borderColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
     final Color textColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
@@ -601,22 +664,16 @@ class _DueWarningCardState extends State<DueWarningCard> {
             size: 40,
           ),
           const SizedBox(height: 10),
-
           Text(
             isPaid
                 ? "Current Month Payment Complete! 🎉"
                 : (_isOverdue ? "Payment Overdue!" : "Monthly Payment Due"),
             style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 18),
           ),
-
           const SizedBox(height: 5),
-
           if (!isPaid && !_isOverdue)
             const Text("Target: 15th of this month", style: TextStyle(color: Colors.grey)),
-
           const SizedBox(height: 10),
-
-          // ✅ Live Countdown Clock Display
           if (!isPaid && _isOverdue)
             const Text("Please Pay ASAP with Penalty", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
           else
@@ -628,29 +685,25 @@ class _DueWarningCardState extends State<DueWarningCard> {
                 border: Border.all(color: borderColor.withOpacity(0.5)),
               ),
               child: Text(
-                _timeDisplayString, // ✅ This variable updates every second
+                _timeDisplayString,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: textColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
-                  fontFeatures: const [FontFeature.tabularFigures()], // নাম্বার ফিক্সড উইডথ রাখবে যাতে কাঁপা বন্ধ হয়
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
-
           if (isPaid)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Text("Next cycle starts in:", style: TextStyle(color: Colors.green.shade800)),
             ),
-
           if (!isPaid) ...[
             const SizedBox(height: 15),
             const Divider(),
             const SizedBox(height: 10),
-
-            // Rules
             Container(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.all(10),

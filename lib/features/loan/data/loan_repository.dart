@@ -14,10 +14,9 @@ class LoanRepository {
 
   LoanRepository({required FirebaseFirestore firestore}) : _firestore = firestore;
 
-  // লোন রিকোয়েস্ট সাবমিট করা
+  // Request Loan
   FutureEither<void> requestLoan(LoanModel loan) async {
     try {
-      // loans কালেকশনে ডাটা সেভ করা
       await _firestore.collection('loans').doc(loan.id).set(loan.toMap());
       return right(null);
     } catch (e) {
@@ -25,7 +24,7 @@ class LoanRepository {
     }
   }
 
-  // একটি কমিউনিটির সব লোন রিকোয়েস্ট দেখার স্ট্রিম
+  // Get Community Loans
   Stream<List<LoanModel>> getCommunityLoans(String communityId) {
     return _firestore
         .collection('loans')
@@ -40,41 +39,30 @@ class LoanRepository {
       return loans;
     });
   }
-  // লোন এপ্রুভ করার ACID ট্রানজেকশন
-  // লোন এপ্রুভ করার ACID ট্রানজেকশন (Fixed)
+
+  // Approve Loan
   FutureEither<void> approveLoan(LoanModel loan) async {
     try {
       final communityRef = _firestore.collection('communities').doc(loan.communityId);
       final loanRef = _firestore.collection('loans').doc(loan.id);
 
-      // 1️⃣ Optimistic Check: ট্রানজেকশন শুরুর আগেই ব্যালেন্স চেক (Web Error Fix)
       final snapshot = await communityRef.get();
-      if (!snapshot.exists) {
-        return left(Failure("Community not found"));
-      }
+      if (!snapshot.exists) return left(Failure("Community not found"));
 
       double currentFund = (snapshot.data()?['totalFund'] ?? 0.0).toDouble();
 
-      // যদি টাকা কম থাকে, ট্রানজেকশনে ঢোকার দরকার নেই
       if (currentFund < loan.amount) {
         return left(Failure("Insufficient fund! Available: ৳$currentFund"));
       }
 
-      // 2️⃣ ACID Transaction
       await _firestore.runTransaction((transaction) async {
-        // ডাবল চেক (Safety First)
         final freshSnapshot = await transaction.get(communityRef);
         double freshBalance = (freshSnapshot.data()?['totalFund'] ?? 0.0).toDouble();
 
-        if (freshBalance < loan.amount) {
-          throw Exception("Insufficient fund!");
-        }
+        if (freshBalance < loan.amount) throw Exception("Insufficient fund!");
 
-        // ফান্ড আপডেট (টাকা কমানো)
         double newFund = freshBalance - loan.amount;
         transaction.update(communityRef, {'totalFund': newFund});
-
-        // লোন স্ট্যাটাস আপডেট
         transaction.update(loanRef, {'status': 'approved'});
       });
 
@@ -83,27 +71,44 @@ class LoanRepository {
       return left(Failure(e.toString()));
     }
   }
-  // ✅ NEW: লোন পরিশোধ বা Repayment ফাংশন
+
+  // Repay Loan
   FutureEither<void> repayLoan(LoanModel loan) async {
     try {
       final communityRef = _firestore.collection('communities').doc(loan.communityId);
       final loanRef = _firestore.collection('loans').doc(loan.id);
 
       await _firestore.runTransaction((transaction) async {
-        // ১. বর্তমান ফান্ড চেক করা
         final communityDoc = await transaction.get(communityRef);
         if (!communityDoc.exists) throw Exception("Community not found");
 
         double currentFund = (communityDoc.data()?['totalFund'] ?? 0.0).toDouble();
-
-        // ২. ফান্ড আপডেট (টাকা ফেরত আসায় ফান্ড বাড়বে)
         double newFund = currentFund + loan.amount;
-        transaction.update(communityRef, {'totalFund': newFund});
 
-        // ৩. লোন স্ট্যাটাস আপডেট (Repaid)
+        transaction.update(communityRef, {'totalFund': newFund});
         transaction.update(loanRef, {'status': 'repaid'});
       });
 
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: Delete Loan (Only if Pending)
+  FutureEither<void> deleteLoan(String loanId) async {
+    try {
+      await _firestore.collection('loans').doc(loanId).delete();
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: Update Loan (Only if Pending)
+  FutureEither<void> updateLoan(LoanModel loan) async {
+    try {
+      await _firestore.collection('loans').doc(loan.id).update(loan.toMap());
       return right(null);
     } catch (e) {
       return left(Failure(e.toString()));
