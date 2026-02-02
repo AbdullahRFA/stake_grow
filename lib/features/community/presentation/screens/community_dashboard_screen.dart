@@ -103,8 +103,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 _buildSubscriptionCard(context, stats),
                 const SizedBox(height: 16),
 
-                // ✅ 6. NEW: Investment Overview Card
-                _buildInvestmentCard(context, stats),
+                // ✅ 6. Investment Overview Card (Updated: Always Visible)
+                _buildInvestmentCard(context, stats, community),
                 const SizedBox(height: 16),
 
                 // 7. My Loan Overview
@@ -125,14 +125,18 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     }),
 
                     _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: community.id); }),
+
+                    // Admin creates, Members view history (Button Label differs)
                     _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
                       if (isAdmin) { context.push('/create-investment', extra: community.id); }
                       else { context.push('/investment-history', extra: community.id); }
                     }),
+
                     _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
                       if (isAdmin) { context.push('/create-activity', extra: community.id); }
                       else { context.push('/activity-history', extra: community.id); }
                     }),
+
                     if (isAdmin) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: community.id); }),
                   ],
                 ),
@@ -147,9 +151,9 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   // --- Helper Widgets ---
 
-  // ✅ NEW WIDGET: Investment Overview
-  Widget _buildInvestmentCard(BuildContext context, UserStats stats) {
-    if (stats.lockedInInvestment == 0) return const SizedBox();
+  // ✅ UPDATED: Investment Overview (Visible to All)
+  Widget _buildInvestmentCard(BuildContext context, UserStats stats, CommunityModel community) {
+    // 🔴 Removed the 'if (stats.lockedInInvestment == 0)' check to show always
 
     return Container(
       width: double.infinity,
@@ -214,7 +218,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ Updated Loan Summary Card with Actions
   Widget _buildLoanSummaryCard(BuildContext context, UserStats stats, WidgetRef ref) {
     bool hasPending = stats.pendingLoans.isNotEmpty;
     bool hasActive = stats.activeLoans.isNotEmpty;
@@ -286,7 +289,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ Updated Details List to show Edit/Delete
   void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef ref, bool isEditable) {
     showModalBottomSheet(
       context: context,
@@ -350,7 +352,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ NEW: Edit Dialog
   void _showEditDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
     final amountController = TextEditingController(text: loan.amount.toString());
     final reasonController = TextEditingController(text: loan.reason);

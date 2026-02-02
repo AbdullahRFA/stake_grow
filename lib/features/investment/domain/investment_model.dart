@@ -27,7 +27,7 @@ class InvestmentModel {
     this.returnAmount,
     this.actualProfitLoss,
     this.endDate,
-    required this.userShares, // ✅
+    required this.userShares,
   });
 
   Map<String, dynamic> toMap() {
@@ -43,7 +43,7 @@ class InvestmentModel {
       'returnAmount': returnAmount,
       'actualProfitLoss': actualProfitLoss,
       'endDate': endDate?.millisecondsSinceEpoch,
-      'userShares': userShares, // ✅
+      'userShares': userShares,
     };
   }
 
@@ -57,10 +57,18 @@ class InvestmentModel {
       expectedProfit: (map['expectedProfit'] ?? 0.0).toDouble(),
       status: map['status'] ?? 'active',
       startDate: DateTime.fromMillisecondsSinceEpoch(map['startDate']),
+
+      // ✅ Handle potential int/double casting issues here
       returnAmount: map['returnAmount'] != null ? (map['returnAmount'] as num).toDouble() : null,
       actualProfitLoss: map['actualProfitLoss'] != null ? (map['actualProfitLoss'] as num).toDouble() : null,
+
       endDate: map['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['endDate']) : null,
-      userShares: Map<String, double>.from(map['userShares'] ?? {}), // ✅
+
+      // ✅ FIX: Safely map numbers to double.
+      // Firestore might return int (e.g. 500) which crashes 'Map<String, double>.from' on mobile.
+      userShares: (map['userShares'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, (value as num).toDouble()),
+      ) ?? {},
     );
   }
 }
