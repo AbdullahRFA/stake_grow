@@ -8,10 +8,12 @@ class InvestmentModel {
   final String status; // 'active', 'completed'
   final DateTime startDate;
 
-  // ✅ NEW FIELDS for Return
-  final double? returnAmount; // কত টাকা ফেরত এসেছে
-  final double? actualProfitLoss; // লাভ নাকি ক্ষতি (+/-)
-  final DateTime? endDate; // কবে শেষ হলো
+  final double? returnAmount;
+  final double? actualProfitLoss;
+  final DateTime? endDate;
+
+  // ✅ NEW: ইনভেস্টমেন্টের সময় কার কত টাকা শেয়ার ছিল (UID -> Amount)
+  final Map<String, double> userShares;
 
   InvestmentModel({
     required this.id,
@@ -25,6 +27,7 @@ class InvestmentModel {
     this.returnAmount,
     this.actualProfitLoss,
     this.endDate,
+    required this.userShares, // ✅
   });
 
   Map<String, dynamic> toMap() {
@@ -40,6 +43,7 @@ class InvestmentModel {
       'returnAmount': returnAmount,
       'actualProfitLoss': actualProfitLoss,
       'endDate': endDate?.millisecondsSinceEpoch,
+      'userShares': userShares, // ✅
     };
   }
 
@@ -56,6 +60,7 @@ class InvestmentModel {
       returnAmount: map['returnAmount'] != null ? (map['returnAmount'] as num).toDouble() : null,
       actualProfitLoss: map['actualProfitLoss'] != null ? (map['actualProfitLoss'] as num).toDouble() : null,
       endDate: map['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(map['endDate']) : null,
+      userShares: Map<String, double>.from(map['userShares'] ?? {}), // ✅
     );
   }
 }

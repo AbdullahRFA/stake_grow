@@ -10,7 +10,7 @@ import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
-import 'package:stake_grow/features/loan/presentation/loan_controller.dart'; // ✅ Import Controller
+import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 
 class CommunityDashboardScreen extends ConsumerWidget {
   final CommunityModel community;
@@ -101,13 +101,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
                 // 5. Subscription Breakdown
                 _buildSubscriptionCard(context, stats),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                // 6. ✅ My Loan Overview (Updated)
+                // ✅ 6. NEW: Investment Overview Card
+                _buildInvestmentCard(context, stats),
+                const SizedBox(height: 16),
+
+                // 7. My Loan Overview
                 _buildLoanSummaryCard(context, stats, ref),
                 const SizedBox(height: 30),
 
-                // 7. Quick Actions
+                // 8. Quick Actions
                 const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                 const SizedBox(height: 16),
                 Row(
@@ -142,6 +146,73 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  // ✅ NEW WIDGET: Investment Overview
+  Widget _buildInvestmentCard(BuildContext context, UserStats stats) {
+    if (stats.lockedInInvestment == 0) return const SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.orange.shade200),
+        boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.trending_up, color: Colors.orange, size: 28),
+              const SizedBox(width: 10),
+              const Text("Active Investments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("My Invested Amount", style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Text("৳ ${stats.lockedInInvestment.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text("Exp. Profit Share", style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Text("~ ৳ ${stats.activeInvestmentProfitExpectation.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(),
+          InkWell(
+            onTap: () => context.push('/investment-history', extra: community.id),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("View Investment Details", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                  Icon(Icons.arrow_forward, size: 16, color: Colors.orange),
+                ],
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
 
   // ✅ Updated Loan Summary Card with Actions
   Widget _buildLoanSummaryCard(BuildContext context, UserStats stats, WidgetRef ref) {
@@ -179,7 +250,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                   child: const Icon(Icons.account_balance_wallet, color: Colors.indigo, size: 24),
                 ),
                 const SizedBox(width: 15),
-                const Text("My Loans", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), // ✅ Renamed
+                const Text("My Loans", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
@@ -194,7 +265,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (hasActive && (hasPending || hasRepaid)) const Divider(height: 1),
           if (hasPending)
             InkWell(
-              // ✅ Pass true to enable actions
               onTap: () => _showLoanDetails(context, "Pending Requests", stats.pendingLoans, ref, true),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -331,9 +401,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ... (Other standard widgets: _buildStatCard, _buildSubscriptionCard, etc. remain unchanged) ...
-  // Please keep the existing helper methods here as they were in the previous file.
 
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
     return InkWell(
@@ -541,7 +608,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 }
 
-// DueWarningCard (StatefulWidget) stays the same as before
 class DueWarningCard extends StatefulWidget {
   final UserStats stats;
   const DueWarningCard({super.key, required this.stats});

@@ -18,7 +18,6 @@ class InvestmentController extends StateNotifier<bool> {
       : _repo = repo,
         super(false);
 
-  // ... createInvestment (Keep as is) ...
   void createInvestment({
     required String communityId,
     required String projectName,
@@ -41,6 +40,8 @@ class InvestmentController extends StateNotifier<bool> {
         expectedProfit: expectedProfit,
         status: 'active',
         startDate: DateTime.now(),
+        // ✅ FIX: Pass empty map initially. The Repository calculates the actual shares.
+        userShares: {},
       );
 
       final res = await _repo.createInvestment(investment);
@@ -58,7 +59,6 @@ class InvestmentController extends StateNotifier<bool> {
     }
   }
 
-  // ✅ NEW: Close Investment Logic
   void closeInvestment({
     required String communityId,
     required String investmentId,
@@ -67,7 +67,6 @@ class InvestmentController extends StateNotifier<bool> {
     required BuildContext context,
   }) async {
     state = true;
-    // লাভ বা ক্ষতি হিসাব করা
     double profitOrLoss = returnAmount - investedAmount;
 
     final res = await _repo.closeInvestment(
@@ -87,7 +86,7 @@ class InvestmentController extends StateNotifier<bool> {
         } else {
           showSnackBar(context, 'Investment Closed with Loss. ⚠️ (৳$profitOrLoss)');
         }
-        Navigator.pop(context); // Dialog Close
+        Navigator.pop(context);
       },
     );
   }
