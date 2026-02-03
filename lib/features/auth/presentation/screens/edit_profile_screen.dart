@@ -56,13 +56,64 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  // ✅ Change Password Dialog
+  void _showChangePasswordDialog() {
+    final oldPassController = TextEditingController();
+    final newPassController = TextEditingController();
+    final formKeyPass = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Change Password"),
+        content: Form(
+          key: formKeyPass,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: oldPassController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: "Current Password"),
+                validator: (val) => val!.isEmpty ? "Enter current password" : null,
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: newPassController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: "New Password"),
+                validator: (val) => val!.length < 6 ? "Minimum 6 chars" : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              if (formKeyPass.currentState!.validate()) {
+                ref.read(authControllerProvider.notifier).changePassword(
+                  oldPassController.text.trim(),
+                  newPassController.text.trim(),
+                  context,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) return const Scaffold(body: Loader());
 
     return Scaffold(
       appBar: AppBar(title: const Text("Edit Profile")),
-      body: Padding(
+      body: SingleChildScrollView( // Changed to Scrollable to avoid overflow
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -85,12 +136,31 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 decoration: const InputDecoration(labelText: "Profession"),
               ),
               const SizedBox(height: 30),
+
+              // Save Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _saveProfile,
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
                   child: const Text("Save Changes"),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+
+              // ✅ Change Password Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showChangePasswordDialog,
+                  icon: const Icon(Icons.lock_reset, color: Colors.redAccent),
+                  label: const Text("Change Password", style: TextStyle(color: Colors.redAccent)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.redAccent),
+                  ),
                 ),
               ),
             ],

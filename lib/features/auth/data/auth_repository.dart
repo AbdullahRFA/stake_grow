@@ -24,6 +24,10 @@ abstract class IAuthRepository {
   });
 
   Future<void> logOut();
+
+  // ✅ NEW METHODS
+  FutureEither<void> forgotPassword(String email);
+  FutureEither<void> changePassword({required String currentPassword, required String newPassword});
 }
 
 class AuthRepository implements IAuthRepository {
@@ -49,7 +53,6 @@ class AuthRepository implements IAuthRepository {
       );
 
       if (userCredential.user != null) {
-        // ✅ FIX: Update Display Name in Firebase Auth immediately
         await userCredential.user!.updateDisplayName(name);
 
         UserModel userModel = UserModel(
@@ -116,7 +119,6 @@ class AuthRepository implements IAuthRepository {
   FutureEither<void> updateUserData(UserModel user) async {
     try {
       await _firestore.collection('users').doc(user.uid).update(user.toMap());
-      // Also update auth profile if name changed
       if (_auth.currentUser != null && user.name != _auth.currentUser!.displayName) {
         await _auth.currentUser!.updateDisplayName(user.name);
       }
@@ -132,5 +134,41 @@ class AuthRepository implements IAuthRepository {
       return UserModel.fromMap(doc.data()!);
     }
     return null;
+  }
+
+  // ✅ Forgot Password Implementation
+  @override
+  FutureEither<void> forgotPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return right(null);
+    } on FirebaseAuthException catch (e) {
+      return left(Failure(e.message ?? 'Failed to send reset email'));
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ Change Password Implementation
+  @override
+  FutureEither<void> changePassword({required String currentPassword, required String newPassword}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return left(Failure('User not logged in'));
+
+      final cred = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+
+      // Re-authenticate user to ensure fresh credentials
+      await user.reauthenticateWithCredential(cred);
+
+      // Update Password
+      await user.updatePassword(newPassword);
+
+      return right(null);
+    } on FirebaseAuthException catch (e) {
+      return left(Failure(e.message ?? 'Failed to change password'));
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
   }
 }
