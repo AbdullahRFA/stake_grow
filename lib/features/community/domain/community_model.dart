@@ -1,15 +1,16 @@
 class CommunityModel {
   final String id;
   final String name;
-  final String adminId; // Main Admin (Owner)
-  final List<String> mods; // Co-Admins
-  final List<String> members; // All members
+  final String adminId;
+  final List<String> mods;
+  final List<String> members;
   final double totalFund;
   final String inviteCode;
   final DateTime createdAt;
-
-  // ✅ NEW: Stores User ID -> Fixed Monthly Amount
   final Map<String, double> monthlySubscriptions;
+
+  // ✅ NEW: Track when each member joined (UID -> Timestamp)
+  final Map<String, int> memberJoinDates;
 
   CommunityModel({
     required this.id,
@@ -20,7 +21,8 @@ class CommunityModel {
     required this.totalFund,
     required this.inviteCode,
     required this.createdAt,
-    required this.monthlySubscriptions, // ✅ Required
+    required this.monthlySubscriptions,
+    required this.memberJoinDates, // ✅ Required
   });
 
   Map<String, dynamic> toMap() {
@@ -33,7 +35,8 @@ class CommunityModel {
       'totalFund': totalFund,
       'inviteCode': inviteCode,
       'createdAt': createdAt.millisecondsSinceEpoch,
-      'monthlySubscriptions': monthlySubscriptions, // ✅ Save to DB
+      'monthlySubscriptions': monthlySubscriptions,
+      'memberJoinDates': memberJoinDates, // ✅ Save
     };
   }
 
@@ -47,9 +50,12 @@ class CommunityModel {
       totalFund: (map['totalFund'] ?? 0.0).toDouble(),
       inviteCode: map['inviteCode'] ?? '',
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
-      // ✅ Load Safely
       monthlySubscriptions: (map['monthlySubscriptions'] as Map<String, dynamic>?)?.map(
             (key, value) => MapEntry(key, (value as num).toDouble()),
+      ) ?? {},
+      // ✅ Load
+      memberJoinDates: (map['memberJoinDates'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, value as int),
       ) ?? {},
     );
   }

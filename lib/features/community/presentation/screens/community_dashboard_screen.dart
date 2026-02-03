@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui'; // Required for FontFeature
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,14 +7,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
+import 'package:stake_grow/features/activity/domain/activity_model.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
+import 'package:stake_grow/features/community/domain/withdrawal_model.dart'; // ✅ Import Withdrawal Model
+import 'package:stake_grow/features/community/presentation/community_controller.dart'; // ✅ Import Controller
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/donation/presentation/donation_controller.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
-import 'package:stake_grow/features/activity/domain/activity_model.dart';
 
 class CommunityDashboardScreen extends ConsumerWidget {
   final CommunityModel community;
@@ -25,6 +28,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch live community details
     final communityAsync = ref.watch(communityDetailsProvider(community.id));
 
     return communityAsync.when(
@@ -39,13 +43,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
         // 2. Check Co-Admin
         final isCoAdmin = currentUser != null && liveCommunity.mods.contains(currentUser.uid);
 
-        // 3. Combined Privilege for operational tasks (Loans, Investments, Deposits)
+        // 3. Combined Privilege for operational tasks
         final hasAdminPrivileges = isMainAdmin || isCoAdmin;
 
-        // ✅ FIX: Pass ID instead of Model
+        // Watch Streams
         final statsAsync = ref.watch(userStatsProvider(liveCommunity.id));
         final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
         final donationsAsync = ref.watch(communityDonationsProvider(liveCommunity.id));
+        // ✅ NEW: Watch Withdrawals Stream
+        final withdrawalsAsync = ref.watch(communityWithdrawalsProvider(liveCommunity.id));
 
         return Scaffold(
           appBar: AppBar(
@@ -116,6 +122,19 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           ),
                         if(hasAdminPrivileges) const SizedBox(height: 16),
 
+                        // ✅ 1B. Admin Withdrawal Requests Card (New Feature)
+                        if (hasAdminPrivileges)
+                          withdrawalsAsync.when(
+                            data: (withdrawals) {
+                              final pending = withdrawals.where((w) => w.status == 'pending').toList();
+                              // Call the helper widget here
+                              return _buildAdminWithdrawalCard(context, pending, ref);
+                            },
+                            loading: () => const SizedBox(),
+                            error: (e, s) => const SizedBox(),
+                          ),
+                        if(hasAdminPrivileges) const SizedBox(height: 16),
+
                         // 2. Due/Warning Card
                         DueWarningCard(stats: stats),
                         const SizedBox(height: 16),
@@ -138,7 +157,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 12),
 
-                        // 4A. My Deposit History Card (Updated with button)
+                        // 4A. My Deposit History Card
                         _buildMyDepositHistoryCard(context, stats.allMyDeposits, ref),
                         const SizedBox(height: 16),
 
@@ -210,6 +229,68 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  // ✅ NEW: Admin Withdrawal Management Card
+  Widget _buildAdminWithdrawalCard(BuildContext context, List<WithdrawalModel> requests, WidgetRef ref) {
+    if(requests.isEmpty) return const SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 8),
+              Text("Withdrawal Requests", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: requests.length,
+            itemBuilder: (context, index) {
+              final req = requests[index];
+              return Card(
+                child: ListTile(
+                  title: Text("${req.userName} (${req.type})"),
+                  subtitle: Text("Amount: ৳${req.amount}\nReason: ${req.reason}"),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        onPressed: () {
+                          // Approve
+                          ref.read(communityControllerProvider.notifier).approveWithdrawal(req, context);
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.cancel, color: Colors.red),
+                        onPressed: () {
+                          // Reject
+                          ref.read(communityControllerProvider.notifier).rejectWithdrawal(req.id, context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   // Admin Verification Card
   Widget _buildAdminDepositCard(BuildContext context, List<DonationModel> pendingDeposits, WidgetRef ref) {
@@ -578,8 +659,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ... (Rest of existing widgets: _buildExpenseImpactCard, _buildActiveLendingCard, etc. same as before)
 
   Widget _buildExpenseImpactCard(BuildContext context, UserStats stats, String communityId) {
     if (stats.totalExpenseShare == 0) return const SizedBox();
@@ -1293,7 +1372,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
-    // ... (Same as before)
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -1326,7 +1404,6 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ... (Other helpers same) ...
   Widget _buildSubscriptionCard(BuildContext context, UserStats stats) {
     bool hasMonthly = stats.monthlyDonated > 0;
     bool hasRandom = stats.randomDonated > 0;
@@ -1501,7 +1578,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 }
 
-// ... DueWarningCard & LoanCountdownTimer (Same as before) ...
+// ... DueWarningCard & LoanCountdownTimer (Keep existing classes below the main widget)
 class DueWarningCard extends StatefulWidget {
   final UserStats stats;
   const DueWarningCard({super.key, required this.stats});
@@ -1711,7 +1788,6 @@ class _DueWarningCardState extends State<DueWarningCard> {
   }
 }
 
-// ... LoanCountdownTimer (Same as before) ...
 class LoanCountdownTimer extends StatefulWidget {
   final DateTime targetDate;
   final double fontSize;

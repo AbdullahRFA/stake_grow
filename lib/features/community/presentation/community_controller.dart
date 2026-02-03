@@ -6,6 +6,7 @@ import 'package:stake_grow/features/auth/domain/user_model.dart';
 import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
+import 'package:stake_grow/features/community/domain/withdrawal_model.dart';
 import 'package:uuid/uuid.dart';
 
 final userCommunitiesProvider = StreamProvider((ref) {
@@ -55,7 +56,9 @@ class CommunityController extends StateNotifier<bool> {
         totalFund: 0.0,
         inviteCode: const Uuid().v4().substring(0, 6),
         createdAt: DateTime.now(),
-        monthlySubscriptions: {}, // ✅ Initialize empty map
+        monthlySubscriptions: {},
+        // ✅ FIX: Initialize Admin's Join Date
+        memberJoinDates: {user.uid: DateTime.now().millisecondsSinceEpoch},
       );
 
       final res = await _communityRepository.createCommunity(community);
@@ -162,7 +165,6 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ NEW: Update Subscription Amount
   void updateMonthlySubscription(String communityId, String userId, double amount, BuildContext context) async {
     final res = await _communityRepository.updateMonthlySubscription(communityId, userId, amount);
     res.fold(
@@ -171,6 +173,35 @@ class CommunityController extends StateNotifier<bool> {
         showSnackBar(context, 'Monthly Subscription Fixed to ৳$amount');
         Navigator.pop(context);
       },
+    );
+  }
+
+  void requestWithdrawal(WithdrawalModel withdrawal, BuildContext context) async {
+    state = true;
+    final res = await _communityRepository.requestWithdrawal(withdrawal);
+    state = false;
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Withdrawal Request Submitted Successfully!');
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  void approveWithdrawal(WithdrawalModel withdrawal, BuildContext context) async {
+    final res = await _communityRepository.approveWithdrawal(withdrawal);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) => showSnackBar(context, 'Withdrawal Approved & Funds Disbursed.'),
+    );
+  }
+
+  void rejectWithdrawal(String id, BuildContext context) async {
+    final res = await _communityRepository.rejectWithdrawal(id);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) => showSnackBar(context, 'Withdrawal Request Rejected.'),
     );
   }
 }

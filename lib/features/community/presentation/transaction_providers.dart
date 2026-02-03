@@ -5,6 +5,8 @@ import 'package:stake_grow/features/community/domain/community_model.dart'; // â
 import 'package:stake_grow/features/donation/data/donation_repository.dart';
 import 'package:stake_grow/features/investment/data/investment_repository.dart';
 
+import '../data/community_repository.dart';
+
 // 1. Donation Stream
 final communityDonationsProvider = StreamProvider.family((ref, String id) {
   return ref.watch(donationRepositoryProvider).getDonations(id);
@@ -27,4 +29,11 @@ final communityDetailsProvider = StreamProvider.family<CommunityModel, String>((
       .doc(id)
       .snapshots()
       .map((doc) => CommunityModel.fromMap(doc.data()!));
+});
+
+// ... existing providers
+
+// âœ… 5. Withdrawals Stream
+final communityWithdrawalsProvider = StreamProvider.family((ref, String id) {
+  return ref.watch(communityRepositoryProvider).getWithdrawals(id);
 });
