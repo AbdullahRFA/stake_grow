@@ -24,6 +24,8 @@ import 'package:stake_grow/features/community/presentation/screens/settings_scre
 import 'package:stake_grow/features/community/presentation/screens/member_list_screen.dart';
 import 'package:stake_grow/features/auth/presentation/screens/edit_profile_screen.dart';
 
+import 'package:stake_grow/features/auth/presentation/screens/welcome_screen.dart'; // Import the new screen
+
 // Global Navigator Key
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -40,6 +42,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder: (context, state) => const HomeScreen(),
+      ),
+      // ✅ ADD THIS NEW ROUTE
+      GoRoute(
+        path: '/welcome',
+        builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
         path: '/login',
@@ -164,15 +171,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading || authState.hasError) return null;
 
       final isAuthenticated = authState.value != null;
-      final isLoggingIn = state.uri.toString() == '/login';
-      final isSigningUp = state.uri.toString() == '/signup';
 
-      if (!isAuthenticated && !isLoggingIn && !isSigningUp) {
-        return '/login';
+      final isWelcome = state.uri.toString() == '/welcome';
+      final isLogin = state.uri.toString() == '/login';
+      final isSignup = state.uri.toString() == '/signup';
+
+      // 1. If NOT authenticated, go to Welcome (instead of Login)
+      if (!isAuthenticated) {
+        // Allow access to Login and Signup pages from Welcome page
+        if (isLogin || isSignup) {
+          return null;
+        }
+        // Otherwise, force to Welcome page
+        return isWelcome ? null : '/welcome';
       }
-      if (isAuthenticated && (isLoggingIn || isSigningUp)) {
+
+      // 2. If Authenticated, go Home
+      if (isAuthenticated && (isWelcome || isLogin || isSignup)) {
         return '/';
       }
+
       return null;
     },
   );
