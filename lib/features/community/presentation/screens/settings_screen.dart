@@ -7,13 +7,12 @@ import 'package:stake_grow/features/community/presentation/community_controller.
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
-  final CommunityModel communityData; // Changed name to distinguish from stream data
+  final CommunityModel communityData;
   const SettingsScreen({super.key, required this.communityData});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = FirebaseAuth.instance.currentUser;
-    // Watch the live community data to get updates on roles/name changes
     final communityAsync = ref.watch(communityDetailsProvider(communityData.id));
 
     return Scaffold(
@@ -24,10 +23,27 @@ class SettingsScreen extends ConsumerWidget {
         data: (community) {
           final isMainAdmin = user != null && user.uid == community.adminId;
 
+          // ✅ Get My Subscription Amount
+          final mySubscription = (user != null && community.monthlySubscriptions.containsKey(user.uid))
+              ? community.monthlySubscriptions[user.uid]
+              : 0.0;
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // 1. Member Management
+              // ✅ 1. Monthly Subscription Setting (Available to ALL)
+              ListTile(
+                leading: const Icon(Icons.monetization_on, color: Colors.green),
+                title: const Text("Set Monthly Subscription"),
+                subtitle: Text(mySubscription! > 0
+                    ? "Current: ৳${mySubscription.toStringAsFixed(0)} / month"
+                    : "Not set yet"),
+                trailing: const Icon(Icons.edit, size: 16),
+                onTap: () => _showSubscriptionDialog(context, ref, community.id, user!.uid, mySubscription),
+              ),
+              const Divider(),
+
+              // 2. Member Management
               ListTile(
                 leading: const Icon(Icons.group, color: Colors.blue),
                 title: const Text("Member List"),
@@ -39,7 +55,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const Divider(),
 
-              // 2. Edit Community (Main Admin Only)
+              // 3. Edit Community (Main Admin Only)
               if (isMainAdmin)
                 ListTile(
                   leading: const Icon(Icons.edit, color: Colors.orange),
@@ -47,7 +63,7 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _showEditDialog(context, ref, community),
                 ),
 
-              // 3. Delete Community (Main Admin Only)
+              // 4. Delete Community (Main Admin Only)
               if (isMainAdmin)
                 ListTile(
                   leading: const Icon(Icons.delete_forever, color: Colors.red),
@@ -56,7 +72,7 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => _showDeleteDialog(context, ref, community.id),
                 ),
 
-              // 4. Leave Community (Non-Main Admins Only)
+              // 5. Leave Community (Non-Main Admins Only)
               if (!isMainAdmin)
                 ListTile(
                   leading: const Icon(Icons.exit_to_app, color: Colors.redAccent),
@@ -66,6 +82,41 @@ class SettingsScreen extends ConsumerWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  // ✅ New Dialog for Subscription
+  void _showSubscriptionDialog(BuildContext context, WidgetRef ref, String communityId, String userId, double currentAmount) {
+    final controller = TextEditingController(text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : "");
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Fixed Monthly Amount"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Enter the amount you commit to pay every month. Once set, you must deposit this exact amount for monthly payments."),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Amount (৳)", prefixText: "৳ "),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              final amount = double.tryParse(controller.text.trim());
+              if (amount != null && amount > 0) {
+                ref.read(communityControllerProvider.notifier).updateMonthlySubscription(communityId, userId, amount, context);
+              }
+            },
+            child: const Text("Set Amount"),
+          ),
+        ],
       ),
     );
   }

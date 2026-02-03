@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:stake_grow/core/failure.dart';
 import 'package:stake_grow/core/type_defs.dart';
-import 'package:stake_grow/features/auth/domain/user_model.dart'; // ✅ Use absolute import
+import 'package:stake_grow/features/auth/domain/user_model.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 
 final communityRepositoryProvider = Provider((ref) {
@@ -15,7 +15,6 @@ class CommunityRepository {
 
   CommunityRepository({required FirebaseFirestore firestore}) : _firestore = firestore;
 
-  // ✅ Create Community
   FutureEither<void> createCommunity(CommunityModel community) async {
     try {
       var communityDoc = _firestore.collection('communities').doc(community.id);
@@ -33,7 +32,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ Get User's Communities
   Stream<List<CommunityModel>> getUserCommunities(String uid) {
     return _firestore
         .collection('communities')
@@ -42,7 +40,6 @@ class CommunityRepository {
         .map((event) => event.docs.map((e) => CommunityModel.fromMap(e.data())).toList());
   }
 
-  // ✅ Join Community
   FutureEither<void> joinCommunity(String inviteCode, String userId) async {
     try {
       final querySnapshot = await _firestore.collection('communities').where('inviteCode', isEqualTo: inviteCode).get();
@@ -68,7 +65,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ 1. LEAVE COMMUNITY
   FutureEither<void> leaveCommunity(String communityId, String userId) async {
     try {
       await _firestore.runTransaction((transaction) async {
@@ -77,7 +73,8 @@ class CommunityRepository {
 
         transaction.update(commRef, {
           'members': FieldValue.arrayRemove([userId]),
-          'mods': FieldValue.arrayRemove([userId]), // Remove from mods if they leave
+          'mods': FieldValue.arrayRemove([userId]),
+          'monthlySubscriptions.$userId': FieldValue.delete(), // ✅ Remove subscription if leaving
         });
 
         transaction.update(userRef, {
@@ -90,7 +87,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ 2. DELETE COMMUNITY (Main Admin Only)
   FutureEither<void> deleteCommunity(String communityId) async {
     try {
       await _firestore.collection('communities').doc(communityId).delete();
@@ -100,7 +96,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ 3. EDIT COMMUNITY NAME (Main Admin Only)
   FutureEither<void> editCommunity(String communityId, String newName) async {
     try {
       await _firestore.collection('communities').doc(communityId).update({'name': newName});
@@ -110,10 +105,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ 4. TOGGLE ADMIN ROLE (Promote/Demote)
-  // This handles your requirement:
-  // - shouldBeMod = true: Assigns admin role
-  // - shouldBeMod = false: Removes admin role (Demote)
   FutureEither<void> toggleModRole(String communityId, String userId, bool shouldBeMod) async {
     try {
       await _firestore.collection('communities').doc(communityId).update({
@@ -125,7 +116,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ 5. REMOVE MEMBER (Kick)
   FutureEither<void> removeMember(String communityId, String memberId) async {
     try {
       await _firestore.runTransaction((transaction) async {
@@ -134,7 +124,8 @@ class CommunityRepository {
 
         transaction.update(commRef, {
           'members': FieldValue.arrayRemove([memberId]),
-          'mods': FieldValue.arrayRemove([memberId]), // Ensure admin privileges are removed too
+          'mods': FieldValue.arrayRemove([memberId]),
+          'monthlySubscriptions.$memberId': FieldValue.delete(), // ✅ Clean up
         });
 
         transaction.update(userRef, {
@@ -147,7 +138,6 @@ class CommunityRepository {
     }
   }
 
-  // ✅ Get Community Members Details
   Stream<List<UserModel>> getCommunityMembers(List<String> memberIds) {
     return _firestore.collection('users').snapshots().map((snapshot) {
       List<UserModel> members = [];
@@ -160,10 +150,21 @@ class CommunityRepository {
     });
   }
 
-  // ✅ Transfer Ownership (Main Admin)
   FutureEither<void> updateCommunityAdmin(String communityId, String newAdminId) async {
     try {
       await _firestore.collection('communities').doc(communityId).update({'adminId': newAdminId});
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: Update Monthly Subscription Amount
+  FutureEither<void> updateMonthlySubscription(String communityId, String userId, double amount) async {
+    try {
+      await _firestore.collection('communities').doc(communityId).update({
+        'monthlySubscriptions.$userId': amount,
+      });
       return right(null);
     } catch (e) {
       return left(Failure(e.toString()));

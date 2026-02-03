@@ -8,7 +8,6 @@ import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:uuid/uuid.dart';
 
-// ✅ Provider to get the list of communities the current user has joined
 final userCommunitiesProvider = StreamProvider((ref) {
   final authState = ref.watch(authStateChangeProvider);
   return authState.when(
@@ -24,7 +23,6 @@ final userCommunitiesProvider = StreamProvider((ref) {
   );
 });
 
-// ✅ Controller Provider
 final communityControllerProvider = StateNotifierProvider<CommunityController, bool>((ref) {
   final communityRepository = ref.watch(communityRepositoryProvider);
   return CommunityController(communityRepository: communityRepository, ref: ref);
@@ -41,7 +39,6 @@ class CommunityController extends StateNotifier<bool> {
         _ref = ref,
         super(false);
 
-  // ✅ Create Community
   void createCommunity(String name, BuildContext context) async {
     state = true;
     final user = _ref.read(authStateChangeProvider).value;
@@ -53,11 +50,12 @@ class CommunityController extends StateNotifier<bool> {
         id: communityId,
         name: name,
         adminId: user.uid,
-        mods: [], // ✅ Initialize Empty Mods List
+        mods: [],
         members: [user.uid],
         totalFund: 0.0,
         inviteCode: const Uuid().v4().substring(0, 6),
         createdAt: DateTime.now(),
+        monthlySubscriptions: {}, // ✅ Initialize empty map
       );
 
       final res = await _communityRepository.createCommunity(community);
@@ -76,7 +74,6 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
-  // ✅ Join Community
   void joinCommunity(String inviteCode, BuildContext context) async {
     state = true;
     final user = _ref.read(authStateChangeProvider).value;
@@ -98,12 +95,10 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
-  // ✅ 1. Load Community Members (Stream)
   Stream<List<UserModel>> getCommunityMembers(List<String> memberIds) {
     return _communityRepository.getCommunityMembers(memberIds);
   }
 
-  // ✅ 2. Remove Member (Kick)
   void removeMember(String communityId, String memberId, BuildContext context) async {
     final res = await _communityRepository.removeMember(communityId, memberId);
     res.fold(
@@ -112,19 +107,17 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ 3. Transfer Ownership (Change Main Admin)
   void updateAdmin(String communityId, String newAdminId, BuildContext context) async {
     final res = await _communityRepository.updateCommunityAdmin(communityId, newAdminId);
     res.fold(
           (l) => showSnackBar(context, l.message),
           (r) {
         showSnackBar(context, 'Ownership transferred successfully!');
-        Navigator.pop(context); // Close dialog
+        Navigator.pop(context);
       },
     );
   }
 
-  // ✅ 4. Leave Community
   void leaveCommunity(String communityId, BuildContext context) async {
     final user = _ref.read(authStateChangeProvider).value;
     if (user == null) return;
@@ -134,12 +127,11 @@ class CommunityController extends StateNotifier<bool> {
           (l) => showSnackBar(context, l.message),
           (r) {
         showSnackBar(context, 'You have left the community.');
-        context.go('/'); // Go back home
+        context.go('/');
       },
     );
   }
 
-  // ✅ 5. Delete Community (Main Admin Only)
   void deleteCommunity(String communityId, BuildContext context) async {
     final res = await _communityRepository.deleteCommunity(communityId);
     res.fold(
@@ -151,7 +143,6 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ 6. Edit Community Name (Main Admin Only)
   void editCommunity(String communityId, String newName, BuildContext context) async {
     final res = await _communityRepository.editCommunity(communityId, newName);
     res.fold(
@@ -163,14 +154,23 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ 7. Toggle Admin Role (Promote/Demote)
-  // shouldBeMod = true -> Make Admin
-  // shouldBeMod = false -> Remove Admin (Demote)
   void toggleModRole(String communityId, String userId, bool shouldBeMod, BuildContext context) async {
     final res = await _communityRepository.toggleModRole(communityId, userId, shouldBeMod);
     res.fold(
           (l) => showSnackBar(context, l.message),
           (r) => showSnackBar(context, shouldBeMod ? 'User Promoted to Admin' : 'User Demoted to Member'),
+    );
+  }
+
+  // ✅ NEW: Update Subscription Amount
+  void updateMonthlySubscription(String communityId, String userId, double amount, BuildContext context) async {
+    final res = await _communityRepository.updateMonthlySubscription(communityId, userId, amount);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Monthly Subscription Fixed to ৳$amount');
+        Navigator.pop(context);
+      },
     );
   }
 }
