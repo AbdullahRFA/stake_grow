@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:stake_grow/core/utils/utils.dart';
-import 'package:stake_grow/features/auth/domain/user_model.dart'; // ✅ Added Import
+import 'package:stake_grow/features/auth/domain/user_model.dart';
 import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:uuid/uuid.dart';
-import 'package:stake_grow/core/utils/utils.dart';
-import 'package:go_router/go_router.dart';
 
+// ✅ Provider to get the list of communities the current user has joined
 final userCommunitiesProvider = StreamProvider((ref) {
   final authState = ref.watch(authStateChangeProvider);
   return authState.when(
@@ -24,6 +24,7 @@ final userCommunitiesProvider = StreamProvider((ref) {
   );
 });
 
+// ✅ Controller Provider
 final communityControllerProvider = StateNotifierProvider<CommunityController, bool>((ref) {
   final communityRepository = ref.watch(communityRepositoryProvider);
   return CommunityController(communityRepository: communityRepository, ref: ref);
@@ -40,6 +41,7 @@ class CommunityController extends StateNotifier<bool> {
         _ref = ref,
         super(false);
 
+  // ✅ Create Community
   void createCommunity(String name, BuildContext context) async {
     state = true;
     final user = _ref.read(authStateChangeProvider).value;
@@ -74,6 +76,7 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
+  // ✅ Join Community
   void joinCommunity(String inviteCode, BuildContext context) async {
     state = true;
     final user = _ref.read(authStateChangeProvider).value;
@@ -95,14 +98,12 @@ class CommunityController extends StateNotifier<bool> {
     }
   }
 
-  // ✅ মেথডগুলো এখন ক্লাসের ভেতরে নিয়ে আসা হয়েছে
-
-  // ১. মেম্বারদের তথ্য লোড করা (Stream)
+  // ✅ 1. Load Community Members (Stream)
   Stream<List<UserModel>> getCommunityMembers(List<String> memberIds) {
     return _communityRepository.getCommunityMembers(memberIds);
   }
 
-  // ২. মেম্বার রিমুভ করা
+  // ✅ 2. Remove Member (Kick)
   void removeMember(String communityId, String memberId, BuildContext context) async {
     final res = await _communityRepository.removeMember(communityId, memberId);
     res.fold(
@@ -111,18 +112,19 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ৩. এডমিন পরিবর্তন করা
+  // ✅ 3. Transfer Ownership (Change Main Admin)
   void updateAdmin(String communityId, String newAdminId, BuildContext context) async {
     final res = await _communityRepository.updateCommunityAdmin(communityId, newAdminId);
     res.fold(
           (l) => showSnackBar(context, l.message),
           (r) {
         showSnackBar(context, 'Ownership transferred successfully!');
-        Navigator.pop(context); // ডায়ালগ বন্ধ
+        Navigator.pop(context); // Close dialog
       },
     );
   }
-  // ✅ Leave Community
+
+  // ✅ 4. Leave Community
   void leaveCommunity(String communityId, BuildContext context) async {
     final user = _ref.read(authStateChangeProvider).value;
     if (user == null) return;
@@ -137,7 +139,7 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ Delete Community
+  // ✅ 5. Delete Community (Main Admin Only)
   void deleteCommunity(String communityId, BuildContext context) async {
     final res = await _communityRepository.deleteCommunity(communityId);
     res.fold(
@@ -149,7 +151,7 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ Edit Community
+  // ✅ 6. Edit Community Name (Main Admin Only)
   void editCommunity(String communityId, String newName, BuildContext context) async {
     final res = await _communityRepository.editCommunity(communityId, newName);
     res.fold(
@@ -161,12 +163,14 @@ class CommunityController extends StateNotifier<bool> {
     );
   }
 
-  // ✅ Toggle Admin Role
+  // ✅ 7. Toggle Admin Role (Promote/Demote)
+  // shouldBeMod = true -> Make Admin
+  // shouldBeMod = false -> Remove Admin (Demote)
   void toggleModRole(String communityId, String userId, bool shouldBeMod, BuildContext context) async {
     final res = await _communityRepository.toggleModRole(communityId, userId, shouldBeMod);
     res.fold(
           (l) => showSnackBar(context, l.message),
-          (r) => showSnackBar(context, shouldBeMod ? 'User Promoted to Admin' : 'User Demoted'),
+          (r) => showSnackBar(context, shouldBeMod ? 'User Promoted to Admin' : 'User Demoted to Member'),
     );
   }
 }

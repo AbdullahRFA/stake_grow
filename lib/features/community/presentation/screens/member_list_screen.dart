@@ -6,8 +6,6 @@ import 'package:stake_grow/features/auth/domain/user_model.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/community_controller.dart';
 
-
-
 class MemberListScreen extends ConsumerWidget {
   final CommunityModel community;
   const MemberListScreen({super.key, required this.community});
@@ -15,9 +13,9 @@ class MemberListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUser = FirebaseAuth.instance.currentUser;
-    // Main Admin Check
+
+    // Permission Checks
     final isMainAdmin = currentUser != null && currentUser.uid == community.adminId;
-    // Co-Admin Check (for kicking members, if you want Co-Admins to kick others)
     final isCoAdmin = currentUser != null && community.mods.contains(currentUser.uid);
     final canManageMembers = isMainAdmin || isCoAdmin;
 
@@ -37,7 +35,7 @@ class MemberListScreen extends ConsumerWidget {
               final user = members[index];
               final isMe = user.uid == currentUser?.uid;
 
-              // Role Checks
+              // Determine Roles
               final isOwner = user.uid == community.adminId;
               final isMod = community.mods.contains(user.uid);
 
@@ -54,28 +52,32 @@ class MemberListScreen extends ConsumerWidget {
                     fontWeight: (isOwner || isMod) ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
-                trailing: (!isMe && canManageMembers) // Only Admins can manage others
+                trailing: (!isMe && canManageMembers)
                     ? PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'remove') {
                       _confirmRemove(context, ref, user.uid, user.name);
                     } else if (value == 'make_mod') {
+                      // Make Admin
                       ref.read(communityControllerProvider.notifier).toggleModRole(community.id, user.uid, true, context);
                     } else if (value == 'dismiss_mod') {
-                      ref.read(communityControllerProvider.notifier).toggleModRole(community.id, user.uid, false, context);
+                      // ✅ Remove Admin Role
+                      _confirmDemote(context, ref, user.uid, user.name);
                     }
                   },
                   itemBuilder: (context) {
                     List<PopupMenuEntry<String>> options = [];
 
-                    // Only Main Admin can assign/dismiss mods
+                    // ✅ MAIN ADMIN ONLY ACTIONS
                     if (isMainAdmin) {
                       if (!isMod) {
+                        // If not an admin, show "Make Admin"
                         options.add(const PopupMenuItem(
                           value: 'make_mod',
                           child: Row(children: [Icon(Icons.security, color: Colors.blue), SizedBox(width: 8), Text("Make Admin")]),
                         ));
                       } else {
+                        // ✅ If already an admin, show "Dismiss Admin"
                         options.add(const PopupMenuItem(
                           value: 'dismiss_mod',
                           child: Row(children: [Icon(Icons.remove_moderator, color: Colors.orange), SizedBox(width: 8), Text("Dismiss Admin")]),
@@ -83,7 +85,7 @@ class MemberListScreen extends ConsumerWidget {
                       }
                     }
 
-                    // Main Admin can remove anyone (except self). Co-Admins can remove Members (not other Admins).
+                    // Kick Member Action (Main Admin or Co-Admin acting on regular member)
                     if (isMainAdmin || (isCoAdmin && !isMod && !isOwner)) {
                       options.add(const PopupMenuItem(
                         value: 'remove',
@@ -124,21 +126,22 @@ class MemberListScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmMakeAdmin(BuildContext context, WidgetRef ref, String memberId, String name) {
+  // ✅ New Confirmation Dialog for Demoting Admin
+  void _confirmDemote(BuildContext context, WidgetRef ref, String memberId, String name) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Transfer Ownership"),
-        content: Text("Make $name the new Admin? You will lose admin privileges."),
+        title: const Text("Dismiss Admin?"),
+        content: Text("Are you sure you want to remove Admin privileges from $name? They will become a regular member."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () {
-              ref.read(communityControllerProvider.notifier).updateAdmin(community.id, memberId, context);
+              ref.read(communityControllerProvider.notifier).toggleModRole(community.id, memberId, false, context);
               Navigator.pop(ctx);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-            child: const Text("Confirm"),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            child: const Text("Dismiss"),
           ),
         ],
       ),
