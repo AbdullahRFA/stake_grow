@@ -49,6 +49,8 @@ dependencies:
   google_fonts: ^6.2.1
   # json_annotation: JSON ডাটা হ্যান্ডলিং এর জন্য হেল্পার
   json_annotation: ^4.9.0
+  pdf: ^3.10.4      # Check for latest version
+  printing: ^5.11.0 # Check for latest version
 
 dev_dependencies:
   flutter_test:
