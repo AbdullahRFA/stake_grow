@@ -31,7 +31,6 @@ class InvestmentRepository {
 
       for (var doc in donationsSnapshot.docs) {
         final data = doc.data();
-        // ✅ FIX: Only count APPROVED donations for share calculation
         if (data['status'] == 'approved') {
           final uid = data['senderId'];
           final amount = (data['amount'] ?? 0.0).toDouble();
@@ -135,7 +134,7 @@ class InvestmentRepository {
               amount: double.parse(userProfitOrLoss.toStringAsFixed(2)),
               type: type,
               timestamp: DateTime.now(),
-              status: 'approved', // ✅ FIX: Mark profit as APPROVED immediately so it shows in User Balance
+              status: 'approved',
             );
 
             final donationRef = _firestore.collection('donations').doc(donationId);
@@ -149,6 +148,49 @@ class InvestmentRepository {
           'actualProfitLoss': profitOrLoss,
           'endDate': DateTime.now().millisecondsSinceEpoch,
         });
+      });
+
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: Update Investment (Metadata Only)
+  FutureEither<void> updateInvestment(InvestmentModel investment) async {
+    try {
+      await _firestore.collection('investments').doc(investment.id).update({
+        'projectName': investment.projectName,
+        'details': investment.details,
+        'expectedProfit': investment.expectedProfit,
+      });
+      return right(null);
+    } catch (e) {
+      return left(Failure(e.toString()));
+    }
+  }
+
+  // ✅ NEW: Delete Investment (Refunds Money)
+  FutureEither<void> deleteInvestment(String communityId, String investmentId) async {
+    try {
+      final communityRef = _firestore.collection('communities').doc(communityId);
+      final investmentRef = _firestore.collection('investments').doc(investmentId);
+
+      await _firestore.runTransaction((transaction) async {
+        final investDoc = await transaction.get(investmentRef);
+        if (!investDoc.exists) throw Exception("Investment not found");
+
+        final investedAmount = (investDoc.data()?['investedAmount'] ?? 0.0).toDouble();
+
+        // Refund money to community
+        final communityDoc = await transaction.get(communityRef);
+        if (communityDoc.exists) {
+          double currentFund = (communityDoc.data()?['totalFund'] ?? 0.0).toDouble();
+          transaction.update(communityRef, {'totalFund': currentFund + investedAmount});
+        }
+
+        // Delete the investment
+        transaction.delete(investmentRef);
       });
 
       return right(null);

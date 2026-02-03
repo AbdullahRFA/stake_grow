@@ -83,11 +83,51 @@ class InvestmentHistoryScreen extends ConsumerWidget {
                             title: Text(invest.projectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                             subtitle: Text("Status: ${isActive ? 'Running ⏳' : 'Closed 🏁'}",
                                 style: TextStyle(color: isActive ? Colors.orange : Colors.grey)),
+
+                            // ✅ Modified Trailing Widget: Admin Actions Menu
                             trailing: (isActive && isAdmin)
-                                ? IconButton(
-                              icon: const Icon(Icons.input, color: Colors.blue),
-                              onPressed: () => _showReturnDialog(context, ref, invest),
-                              tooltip: "Record Return",
+                                ? PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'return') {
+                                  _showReturnDialog(context, ref, invest);
+                                } else if (value == 'edit') {
+                                  _showEditDialog(context, ref, invest);
+                                } else if (value == 'delete') {
+                                  _showDeleteConfirmDialog(context, ref, invest);
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem(
+                                  value: 'return',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.input, color: Colors.blue),
+                                      SizedBox(width: 8),
+                                      Text('Record Return'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, color: Colors.orange),
+                                      SizedBox(width: 8),
+                                      Text('Edit Details'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete & Refund'),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             )
                                 : null,
                           ),
@@ -184,7 +224,111 @@ class InvestmentHistoryScreen extends ConsumerWidget {
     );
   }
 
-  // ✅ PDF Generation Logic
+  // ✅ New: Show Edit Dialog
+  void _showEditDialog(BuildContext context, WidgetRef ref, InvestmentModel invest) {
+    final titleController = TextEditingController(text: invest.projectName);
+    final detailsController = TextEditingController(text: invest.details);
+    final profitController = TextEditingController(text: invest.expectedProfit.toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Edit Investment"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: "Project Name"),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: profitController,
+              decoration: const InputDecoration(labelText: "Expected Profit (৳)"),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: detailsController,
+              decoration: const InputDecoration(labelText: "Details"),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "Note: Investment Amount cannot be changed to ensure share accuracy.",
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              final updatedInvest = InvestmentModel(
+                id: invest.id,
+                communityId: invest.communityId,
+                projectName: titleController.text.trim(),
+                details: detailsController.text.trim(),
+                investedAmount: invest.investedAmount, // Keep original
+                expectedProfit: double.tryParse(profitController.text) ?? invest.expectedProfit,
+                status: invest.status,
+                startDate: invest.startDate,
+                userShares: invest.userShares,
+                returnAmount: invest.returnAmount,
+                actualProfitLoss: invest.actualProfitLoss,
+                endDate: invest.endDate,
+              );
+
+              ref.read(investmentControllerProvider.notifier).updateInvestment(
+                  investment: updatedInvest,
+                  context: context
+              );
+            },
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ New: Show Delete Confirmation
+  void _showDeleteConfirmDialog(BuildContext context, WidgetRef ref, InvestmentModel invest) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Investment?"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Are you sure you want to delete '${invest.projectName}'?"),
+            const SizedBox(height: 10),
+            Text(
+              "This will refund ৳${invest.investedAmount} back to the Community Fund.",
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              ref.read(investmentControllerProvider.notifier).deleteInvestment(
+                  communityId: invest.communityId,
+                  investmentId: invest.id,
+                  context: context
+              );
+              Navigator.pop(ctx);
+            },
+            child: const Text("Delete & Refund"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ PDF Generation Logic (Kept same as before)
   void _generatePdf(BuildContext context, WidgetRef ref, InvestmentModel invest) async {
     showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
@@ -192,7 +336,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
       final pdf = pw.Document();
       final font = await PdfGoogleFonts.nunitoExtraLight();
 
-      // Fetch Names
       Map<String, String> stakeholderNames = {};
       final authRepo = ref.read(authRepositoryProvider);
 
@@ -211,7 +354,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
           theme: pw.ThemeData.withFont(base: font),
           build: (pw.Context context) {
             return [
-              // Header
               pw.Header(
                   level: 0,
                   child: pw.Row(
@@ -225,7 +367,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
 
               pw.SizedBox(height: 20),
 
-              // Project Info
               pw.Text("Executive Summary", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
               pw.Text("Project Name: ${invest.projectName}"),
@@ -235,7 +376,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
 
               pw.SizedBox(height: 20),
 
-              // ✅ NEW: Stakeholder Contribution Breakdown
               pw.Text("Initial Contribution Breakdown", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Text("Total Invested Capital: $currency ${invest.investedAmount}", style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
@@ -244,7 +384,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
               pw.Table(
                   border: pw.TableBorder.all(color: PdfColors.grey300),
                   children: [
-                    // Header
                     pw.TableRow(
                         decoration: const pw.BoxDecoration(color: PdfColors.grey200),
                         children: [
@@ -253,7 +392,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
                           _pdfCell("Ownership %", isHeader: true),
                         ]
                     ),
-                    // Rows
                     ...invest.userShares.entries.map((entry) {
                       final uid = entry.key;
                       final share = entry.value;
@@ -270,7 +408,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
 
               pw.SizedBox(height: 20),
 
-              // Financial Overview
               pw.Text("Financial Statement", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
               pw.Table(
@@ -293,7 +430,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
 
               pw.SizedBox(height: 20),
 
-              // Methodology
               pw.Container(
                   padding: const pw.EdgeInsets.all(10),
                   color: PdfColors.grey100,
@@ -313,7 +449,6 @@ class InvestmentHistoryScreen extends ConsumerWidget {
 
               pw.SizedBox(height: 20),
 
-              // Final Distribution Table
               pw.Text("Final Profit/Loss Distribution", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
 

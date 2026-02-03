@@ -40,7 +40,6 @@ class InvestmentController extends StateNotifier<bool> {
         expectedProfit: expectedProfit,
         status: 'active',
         startDate: DateTime.now(),
-        // ✅ FIX: Pass empty map initially. The Repository calculates the actual shares.
         userShares: {},
       );
 
@@ -87,6 +86,37 @@ class InvestmentController extends StateNotifier<bool> {
           showSnackBar(context, 'Investment Closed with Loss. ⚠️ (৳$profitOrLoss)');
         }
         Navigator.pop(context);
+      },
+    );
+  }
+
+  // ✅ Update Investment
+  void updateInvestment({
+    required InvestmentModel investment,
+    required BuildContext context,
+  }) async {
+    final res = await _repo.updateInvestment(investment);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Investment Updated Successfully');
+        Navigator.pop(context); // Close dialog
+      },
+    );
+  }
+
+  // ✅ Delete Investment
+  void deleteInvestment({
+    required String communityId,
+    required String investmentId,
+    required BuildContext context,
+  }) async {
+    final res = await _repo.deleteInvestment(communityId, investmentId);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Investment Deleted & Funds Refunded');
+        Navigator.pop(context); // Close dialog if open
       },
     );
   }
