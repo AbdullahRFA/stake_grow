@@ -831,10 +831,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
+
   Widget _buildProfitLossCard(UserStats stats) {
-    double totalDeposited = stats.monthlyDonated + stats.randomDonated;
-    double profitOrLoss = stats.totalLifetimeContributed - totalDeposited;
-    bool isProfit = profitOrLoss >= 0;
+    // We now use the explicit stats calculated in the provider
+    bool isProfit = stats.totalInvestmentProfit >= stats.totalInvestmentLoss;
+    double netInvestmentPL = stats.totalInvestmentProfit - stats.totalInvestmentLoss;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -844,51 +845,87 @@ class CommunityDashboardScreen extends ConsumerWidget {
         boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
         border: Border.all(color: Colors.indigo.withOpacity(0.1)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("My Total Deposit", style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 5),
-                Text("৳ ${totalDeposited.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          Container(width: 1, height: 40, color: Colors.grey.shade300),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(isProfit ? "Total Profit" : "Total Loss", style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 5),
-                Row(
+          // Row 1: Withdrawals (NEW)
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      isProfit ? Icons.arrow_upward : Icons.arrow_downward,
-                      color: isProfit ? Colors.green : Colors.red,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      "৳ ${profitOrLoss.abs().toStringAsFixed(0)}",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isProfit ? Colors.green : Colors.red,
-                      ),
+                    const Text("My Total Deposit", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const SizedBox(height: 5),
+                    Text("৳ ${stats.totalLifetimeContributed.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 40, color: Colors.grey.shade300),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Total Withdrawn", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(Icons.outbound, color: Colors.orange, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          "৳ ${stats.totalWithdrawn.toStringAsFixed(0)}",
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          const Divider(),
+          const SizedBox(height: 10),
+
+          // Row 2: Investment Performance (Profit/Loss)
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text("Investment Performance", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Total Profit Share", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      "+ ৳ ${stats.totalInvestmentProfit.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text("Investment Loss", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      "- ৳ ${stats.totalInvestmentLoss.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
 
   Widget _buildInvestmentCard(BuildContext context, UserStats stats, CommunityModel community) {
     return Container(

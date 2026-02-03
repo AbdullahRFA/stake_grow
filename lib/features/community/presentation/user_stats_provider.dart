@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stake_grow/features/activity/domain/activity_model.dart';
-import 'package:stake_grow/features/community/domain/community_model.dart'; // Import CommunityModel
+import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/investment/domain/investment_model.dart';
@@ -10,7 +10,7 @@ import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 
 class UserStats {
   final double totalDonated; // Liquid Balance
-  final double totalLifetimeContributed; // Gross Deposits
+  final double totalLifetimeContributed; // Gross Deposits (Money put in)
   final double contributionPercentage; // Ownership %
 
   final double lockedInInvestment;
@@ -23,6 +23,12 @@ class UserStats {
   final double randomDonated;
   final double monthlyPercent;
   final double randomPercent;
+
+  // ✅ NEW FIELDS FOR SEPARATE TRACKING
+  final double totalWithdrawn;
+  final double totalInvestmentProfit;
+  final double totalInvestmentLoss;
+
   final List<DonationModel> monthlyList;
   final List<DonationModel> randomList;
   final List<DonationModel> allMyDeposits;
@@ -48,6 +54,9 @@ class UserStats {
     required this.randomDonated,
     required this.monthlyPercent,
     required this.randomPercent,
+    required this.totalWithdrawn, // ✅
+    required this.totalInvestmentProfit, // ✅
+    required this.totalInvestmentLoss, // ✅
     required this.monthlyList,
     required this.randomList,
     required this.allMyDeposits,
@@ -61,11 +70,10 @@ class UserStats {
   });
 }
 
-// ✅ FIX: Change argument to String (communityId) to watch stream internally
 final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, communityId) {
   final user = FirebaseAuth.instance.currentUser;
 
-  // 1. WATCH ALL STREAMS (Including Community Details for Total Fund)
+  // 1. WATCH ALL STREAMS
   final communityAsync = ref.watch(communityDetailsProvider(communityId));
   final donationsAsync = ref.watch(communityDonationsProvider(communityId));
   final loansAsync = ref.watch(communityLoansProvider(communityId));
@@ -92,6 +100,7 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
       totalDonated: 0, totalLifetimeContributed: 0, contributionPercentage: 0,
       lockedInInvestment: 0, lockedInLoan: 0, totalExpenseShare: 0, activeInvestmentProfitExpectation: 0,
       monthlyDonated: 0, randomDonated: 0, monthlyPercent: 0, randomPercent: 0,
+      totalWithdrawn: 0, totalInvestmentProfit: 0, totalInvestmentLoss: 0,
       monthlyList: [], randomList: [], allMyDeposits: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [], myImpactActivities: [],
       activeLoanAmount: 0, isCurrentMonthPaid: false,
     ));
@@ -99,13 +108,39 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
 
   // 5. Calculate Stats
 
-  // --- Donations (Deposits) ---
+  // --- Donations & Financial History ---
   final allMyDeposits = donations.where((d) => d.senderId == user.uid).toList();
-  // Only Approved deposits count towards balance
   final myApprovedDonations = allMyDeposits.where((d) => d.status == 'approved').toList();
+
+  // Calculate Net Contribution (Includes Deposits, Withdrawals, Profits, Losses)
   double netContribution = myApprovedDonations.fold(0, (sum, item) => sum + item.amount);
 
-  // --- Investments ---
+  // --- Segregate Transaction Types ---
+  // A. Deposits (Positive Money In)
+  final monthlyList = myApprovedDonations.where((d) => d.type == 'Monthly').toList();
+  final randomList = myApprovedDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
+  double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
+  double randomTotal = randomList.fold(0, (sum, item) => sum + item.amount);
+  double grossDeposits = monthlyTotal + randomTotal; // Total money explicitly deposited by user
+
+  // B. Withdrawals (Negative Money Out)
+  final withdrawalList = myApprovedDonations.where((d) => d.type == 'Withdrawal').toList();
+  // Use .abs() because withdrawals are stored as negative numbers
+  double totalWithdrawn = withdrawalList.fold(0.0, (sum, item) => sum + item.amount.abs());
+
+  // C. Investments Returns (Profit & Loss)
+  final profitList = myApprovedDonations.where((d) => d.type == 'Profit Share').toList();
+  double totalInvestmentProfit = profitList.fold(0, (sum, item) => sum + item.amount);
+
+  final lossList = myApprovedDonations.where((d) => d.type == 'Loss Adjustment').toList();
+  // Loss is usually stored as negative, so we take abs to show "Loss: 500"
+  double totalInvestmentLoss = lossList.fold(0.0, (sum, item) => sum + item.amount.abs());
+
+  // D. Percentages
+  double monthlyPct = grossDeposits == 0 ? 0 : (monthlyTotal / grossDeposits) * 100;
+  double randomPct = grossDeposits == 0 ? 0 : (randomTotal / grossDeposits) * 100;
+
+  // --- Investments (Locked) ---
   final activeInvestments = investments.where((i) => i.status == 'active').toList();
   double myLockedInInvestment = 0.0;
   double expectedProfitShare = 0.0;
@@ -147,52 +182,26 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
   }
 
   // --- Liquid Balance Calculation ---
-  // Formula: Total Approved Deposits - (Investment Lock + Loan Lock + Expense Deduction)
+  // Formula: Total Net Contribution (Fund Balance) - (Investment Lock + Loan Lock + Expenses)
   double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan - myTotalExpenseShare;
 
-  // --- Breakdown ---
-  final monthlyList = myApprovedDonations.where((d) => d.type == 'Monthly').toList();
-  final randomList = myApprovedDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
+  // --- Monthly Check ---
   final now = DateTime.now();
   bool isPaid = monthlyList.any((d) => d.timestamp.month == now.month && d.timestamp.year == now.year);
-  double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
-  double randomTotal = randomList.fold(0, (sum, item) => sum + item.amount);
-  double monthlyPct = netContribution == 0 ? 0 : (monthlyTotal / netContribution) * 100;
-  double randomPct = netContribution == 0 ? 0 : (randomTotal / netContribution) * 100;
 
-  // --- Percentage Calculation (The Fix) ---
-
-  // 1. Total Assets = Cash + Active Investments + Active Loans
-  // (Total Fund in DB only holds Cash)
+  // --- Ownership Percentage ---
   double totalActiveInvested = activeInvestments.fold(0, (sum, i) => sum + i.investedAmount);
   double totalActiveLoaned = allActiveLoans.fold(0, (sum, l) => sum + l.amount);
-
   double totalCommunityAssets = community.totalFund + totalActiveInvested + totalActiveLoaned;
 
-  // 2. My Remaining Equity = What I put in - What I spent on expenses
-  // (We do NOT subtract locks here, because locks are still part of my equity, just not liquid)
-  double myRemainingEquity = netContribution - myTotalExpenseShare;
-
-  // print(liquidBalance);
-  // print(myRemainingEquity);
-  // print(totalCommunityAssets);
-  // print(myLockedInInvestment);
-  // print(myLockedInLoan);
-  // print(myTotalExpenseShare);
-  // print(expectedProfitShare);
-  // print(netContribution);
-
-  // 3. True Ownership Percentage
   double commPercentage = totalCommunityAssets == 0
       ? 0
       : (liquidBalance / community.totalFund) * 100;
 
-  // print(commPercentage);
-
   return AsyncValue.data(UserStats(
     totalDonated: liquidBalance,
-    totalLifetimeContributed: netContribution,
-    contributionPercentage: commPercentage, // ✅ Now Correct
+    totalLifetimeContributed: grossDeposits, // Changed to show explicit Deposits only
+    contributionPercentage: commPercentage,
     lockedInInvestment: myLockedInInvestment,
     lockedInLoan: myLockedInLoan,
     totalExpenseShare: myTotalExpenseShare,
@@ -201,6 +210,12 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
     randomDonated: randomTotal,
     monthlyPercent: monthlyPct,
     randomPercent: randomPct,
+
+    // ✅ PASSING NEW VALUES
+    totalWithdrawn: totalWithdrawn,
+    totalInvestmentProfit: totalInvestmentProfit,
+    totalInvestmentLoss: totalInvestmentLoss,
+
     monthlyList: monthlyList,
     randomList: randomList,
     allMyDeposits: allMyDeposits,
@@ -212,7 +227,4 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
     activeLoanAmount: activeDebt,
     isCurrentMonthPaid: isPaid,
   ));
-
-  print(activeDebt);
 });
-
