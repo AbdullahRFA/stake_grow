@@ -18,7 +18,6 @@ class ActivityRepository {
       final communityRef = _firestore.collection('communities').doc(activity.communityId);
       final activityRef = _firestore.collection('activities').doc(activity.id);
 
-      // 1. Fetch Donation History to calculate shares
       final donationsSnapshot = await _firestore
           .collection('donations')
           .where('communityId', isEqualTo: activity.communityId)
@@ -29,26 +28,26 @@ class ActivityRepository {
 
       for (var doc in donationsSnapshot.docs) {
         final data = doc.data();
-        final uid = data['senderId'];
-        final amount = (data['amount'] ?? 0.0).toDouble();
-        userTotalDonations[uid] = (userTotalDonations[uid] ?? 0.0) + amount;
-        totalPool += amount;
+        // ✅ FIX: Only consider approved money
+        if (data['status'] == 'approved') {
+          final uid = data['senderId'];
+          final amount = (data['amount'] ?? 0.0).toDouble();
+          userTotalDonations[uid] = (userTotalDonations[uid] ?? 0.0) + amount;
+          totalPool += amount;
+        }
       }
 
-      // 2. Calculate Expense Shares for each user
       Map<String, double> calculatedExpenseShares = {};
       if (totalPool > 0) {
         userTotalDonations.forEach((uid, totalDonated) {
           if (totalDonated > 0) {
             double sharePercentage = totalDonated / totalPool;
             double shareAmount = activity.cost * sharePercentage;
-            // Round to 2 decimal places
             calculatedExpenseShares[uid] = double.parse(shareAmount.toStringAsFixed(2));
           }
         });
       }
 
-      // 3. Create updated model with calculated shares
       final activityWithShares = ActivityModel(
         id: activity.id,
         communityId: activity.communityId,
@@ -57,10 +56,9 @@ class ActivityRepository {
         cost: activity.cost,
         date: activity.date,
         type: activity.type,
-        expenseShares: calculatedExpenseShares, // ✅ Attached shares
+        expenseShares: calculatedExpenseShares,
       );
 
-      // 4. Run Transaction (Deduct Fund & Save Activity)
       await _firestore.runTransaction((transaction) async {
         final communityDoc = await transaction.get(communityRef);
         if (!communityDoc.exists) throw Exception("Community not found");

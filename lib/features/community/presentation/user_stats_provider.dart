@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stake_grow/features/activity/domain/activity_model.dart';
-import 'package:stake_grow/features/community/domain/community_model.dart';
+import 'package:stake_grow/features/community/domain/community_model.dart'; // Import CommunityModel
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
 import 'package:stake_grow/features/investment/domain/investment_model.dart';
@@ -10,8 +10,8 @@ import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 
 class UserStats {
   final double totalDonated; // Liquid Balance
-  final double totalLifetimeContributed;
-  final double contributionPercentage;
+  final double totalLifetimeContributed; // Gross Deposits
+  final double contributionPercentage; // Ownership %
 
   final double lockedInInvestment;
   final double lockedInLoan;
@@ -61,25 +61,27 @@ class UserStats {
   });
 }
 
-// ✅ REFACTORED: Using ref.watch for REAL-TIME updates on all streams
-final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>((ref, community) {
+// ✅ FIX: Change argument to String (communityId) to watch stream internally
+final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, communityId) {
   final user = FirebaseAuth.instance.currentUser;
 
-  // 1. WATCH streams directly to trigger rebuilds on change
-  final donationsAsync = ref.watch(communityDonationsProvider(community.id));
-  final loansAsync = ref.watch(communityLoansProvider(community.id));
-  final investmentsAsync = ref.watch(communityInvestmentsProvider(community.id));
-  final activitiesAsync = ref.watch(communityActivitiesProvider(community.id));
+  // 1. WATCH ALL STREAMS (Including Community Details for Total Fund)
+  final communityAsync = ref.watch(communityDetailsProvider(communityId));
+  final donationsAsync = ref.watch(communityDonationsProvider(communityId));
+  final loansAsync = ref.watch(communityLoansProvider(communityId));
+  final investmentsAsync = ref.watch(communityInvestmentsProvider(communityId));
+  final activitiesAsync = ref.watch(communityActivitiesProvider(communityId));
 
   // 2. Handle Loading
-  if (donationsAsync.isLoading || loansAsync.isLoading || investmentsAsync.isLoading || activitiesAsync.isLoading) {
+  if (communityAsync.isLoading || donationsAsync.isLoading || loansAsync.isLoading || investmentsAsync.isLoading || activitiesAsync.isLoading) {
     return const AsyncValue.loading();
   }
 
-  // 3. Handle Errors (Gracefully return empty stats or error)
-  if (donationsAsync.hasError) return AsyncValue.error(donationsAsync.error!, donationsAsync.stackTrace!);
+  // 3. Handle Errors
+  if (communityAsync.hasError) return AsyncValue.error(communityAsync.error!, communityAsync.stackTrace!);
 
   // 4. Extract Data
+  final community = communityAsync.value!;
   final donations = donationsAsync.value ?? [];
   final loans = loansAsync.value ?? [];
   final investments = investmentsAsync.value ?? [];
@@ -97,12 +99,13 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
 
   // 5. Calculate Stats
 
-  // Donations
+  // --- Donations (Deposits) ---
   final allMyDeposits = donations.where((d) => d.senderId == user.uid).toList();
+  // Only Approved deposits count towards balance
   final myApprovedDonations = allMyDeposits.where((d) => d.status == 'approved').toList();
   double netContribution = myApprovedDonations.fold(0, (sum, item) => sum + item.amount);
 
-  // Investments
+  // --- Investments ---
   final activeInvestments = investments.where((i) => i.status == 'active').toList();
   double myLockedInInvestment = 0.0;
   double expectedProfitShare = 0.0;
@@ -115,7 +118,7 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
     }
   }
 
-  // Loans
+  // --- Loans ---
   final myTakenLoans = loans.where((l) => l.borrowerId == user.uid).toList();
   final pending = myTakenLoans.where((l) => l.status == 'pending').toList();
   final activeTaken = myTakenLoans.where((l) => l.status == 'approved').toList();
@@ -132,7 +135,7 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
     }
   }
 
-  // Expenses
+  // --- Expenses (Activities) ---
   double myTotalExpenseShare = 0.0;
   List<ActivityModel> impactActivities = [];
   for (var activity in activities) {
@@ -143,10 +146,11 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
     }
   }
 
-  // Liquid Balance
+  // --- Liquid Balance Calculation ---
+  // Formula: Total Approved Deposits - (Investment Lock + Loan Lock + Expense Deduction)
   double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan - myTotalExpenseShare;
 
-  // Breakdown
+  // --- Breakdown ---
   final monthlyList = myApprovedDonations.where((d) => d.type == 'Monthly').toList();
   final randomList = myApprovedDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
   final now = DateTime.now();
@@ -156,14 +160,20 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
   double monthlyPct = netContribution == 0 ? 0 : (monthlyTotal / netContribution) * 100;
   double randomPct = netContribution == 0 ? 0 : (randomTotal / netContribution) * 100;
 
-  // Percentage Calc
+  // --- Percentage Calculation (The Fix) ---
+
+  // 1. Total Assets = Cash + Active Investments + Active Loans
+  // (Total Fund in DB only holds Cash)
   double totalActiveInvested = activeInvestments.fold(0, (sum, i) => sum + i.investedAmount);
   double totalActiveLoaned = allActiveLoans.fold(0, (sum, l) => sum + l.amount);
 
-  // Using DB fund is safest, but we add actives back to get "Total Assets"
   double totalCommunityAssets = community.totalFund + totalActiveInvested + totalActiveLoaned;
+
+  // 2. My Remaining Equity = What I put in - What I spent on expenses
+  // (We do NOT subtract locks here, because locks are still part of my equity, just not liquid)
   double myRemainingEquity = netContribution - myTotalExpenseShare;
 
+  // 3. True Ownership Percentage
   double commPercentage = totalCommunityAssets == 0
       ? 0
       : (myRemainingEquity / totalCommunityAssets) * 100;
@@ -171,7 +181,7 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, CommunityModel>
   return AsyncValue.data(UserStats(
     totalDonated: liquidBalance,
     totalLifetimeContributed: netContribution,
-    contributionPercentage: commPercentage,
+    contributionPercentage: commPercentage, // ✅ Now Correct
     lockedInInvestment: myLockedInInvestment,
     lockedInLoan: myLockedInLoan,
     totalExpenseShare: myTotalExpenseShare,

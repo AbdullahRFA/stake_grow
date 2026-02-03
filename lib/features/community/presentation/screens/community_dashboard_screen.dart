@@ -34,7 +34,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
         final currentUser = FirebaseAuth.instance.currentUser;
         final isAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
 
-        final statsAsync = ref.watch(userStatsProvider(liveCommunity));
+        // ✅ FIX: Pass ID instead of Model
+        final statsAsync = ref.watch(userStatsProvider(liveCommunity.id));
         final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
         final donationsAsync = ref.watch(communityDonationsProvider(liveCommunity.id));
 
