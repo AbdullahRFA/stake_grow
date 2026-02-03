@@ -32,7 +32,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
       error: (e, s) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (liveCommunity) {
         final currentUser = FirebaseAuth.instance.currentUser;
-        final isAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
+
+        // 1. Check Main Admin (Owner)
+        final isMainAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
+
+        // 2. Check Co-Admin
+        final isCoAdmin = currentUser != null && liveCommunity.mods.contains(currentUser.uid);
+
+        // 3. Combined Privilege for operational tasks (Loans, Investments, Deposits)
+        final hasAdminPrivileges = isMainAdmin || isCoAdmin;
 
         // ✅ FIX: Pass ID instead of Model
         final statsAsync = ref.watch(userStatsProvider(liveCommunity.id));
@@ -96,7 +104,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         const SizedBox(height: 16),
 
                         // 1A. Admin Deposit Requests Card
-                        if (isAdmin)
+                        if (hasAdminPrivileges)
                           donationsAsync.when(
                             data: (donations) {
                               final pendingDeposits = donations.where((d) => d.status == 'pending').toList();
@@ -106,14 +114,14 @@ class CommunityDashboardScreen extends ConsumerWidget {
                             loading: () => const SizedBox(),
                             error: (e, s) => Text("Error loading deposits: $e"),
                           ),
-                        if(isAdmin) const SizedBox(height: 16),
+                        if(hasAdminPrivileges) const SizedBox(height: 16),
 
                         // 2. Due/Warning Card
                         DueWarningCard(stats: stats),
                         const SizedBox(height: 16),
 
                         // 3. Invite Code (Admin)
-                        if (isAdmin) ...[
+                        if (hasAdminPrivileges) ...[
                           _buildInviteCard(context, liveCommunity.inviteCode),
                           const SizedBox(height: 24),
                         ],
@@ -155,7 +163,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         const SizedBox(height: 16),
 
                         // 10. Admin Loan Overview
-                        if (isAdmin) ...[
+                        if (hasAdminPrivileges) ...[
                           _buildAdminLoanOverviewCard(context, allLoans, ref),
                           const SizedBox(height: 16),
                         ],
@@ -177,15 +185,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
                               });
                             }),
                             _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: liveCommunity.id); }),
-                            _buildActionButton(Icons.bar_chart, isAdmin ? 'Invest' : 'Investments', () {
-                              if (isAdmin) { context.push('/create-investment', extra: liveCommunity.id); }
+                            _buildActionButton(Icons.bar_chart, hasAdminPrivileges ? 'Invest' : 'Investments', () {
+                              if (hasAdminPrivileges) { context.push('/create-investment', extra: liveCommunity.id); }
                               else { context.push('/investment-history', extra: liveCommunity.id); }
                             }),
-                            _buildActionButton(Icons.event, isAdmin ? 'Activity' : 'Activities', () {
-                              if (isAdmin) { context.push('/create-activity', extra: liveCommunity.id); }
+                            _buildActionButton(Icons.event, hasAdminPrivileges ? 'Activity' : 'Activities', () {
+                              if (hasAdminPrivileges) { context.push('/create-activity', extra: liveCommunity.id); }
                               else { context.push('/activity-history', extra: liveCommunity.id); }
                             }),
-                            if (isAdmin) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: liveCommunity.id); }),
+                            if (hasAdminPrivileges) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: liveCommunity.id); }),
                           ],
                         ),
                         const SizedBox(height: 20),

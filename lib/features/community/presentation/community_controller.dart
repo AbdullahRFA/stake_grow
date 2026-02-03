@@ -6,6 +6,8 @@ import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/features/community/data/community_repository.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:uuid/uuid.dart';
+import 'package:stake_grow/core/utils/utils.dart';
+import 'package:go_router/go_router.dart';
 
 final userCommunitiesProvider = StreamProvider((ref) {
   final authState = ref.watch(authStateChangeProvider);
@@ -49,6 +51,7 @@ class CommunityController extends StateNotifier<bool> {
         id: communityId,
         name: name,
         adminId: user.uid,
+        mods: [], // ✅ Initialize Empty Mods List
         members: [user.uid],
         totalFund: 0.0,
         inviteCode: const Uuid().v4().substring(0, 6),
@@ -117,6 +120,53 @@ class CommunityController extends StateNotifier<bool> {
         showSnackBar(context, 'Ownership transferred successfully!');
         Navigator.pop(context); // ডায়ালগ বন্ধ
       },
+    );
+  }
+  // ✅ Leave Community
+  void leaveCommunity(String communityId, BuildContext context) async {
+    final user = _ref.read(authStateChangeProvider).value;
+    if (user == null) return;
+
+    final res = await _communityRepository.leaveCommunity(communityId, user.uid);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'You have left the community.');
+        context.go('/'); // Go back home
+      },
+    );
+  }
+
+  // ✅ Delete Community
+  void deleteCommunity(String communityId, BuildContext context) async {
+    final res = await _communityRepository.deleteCommunity(communityId);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Community Deleted Successfully.');
+        context.go('/');
+      },
+    );
+  }
+
+  // ✅ Edit Community
+  void editCommunity(String communityId, String newName, BuildContext context) async {
+    final res = await _communityRepository.editCommunity(communityId, newName);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) {
+        showSnackBar(context, 'Community Name Updated!');
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  // ✅ Toggle Admin Role
+  void toggleModRole(String communityId, String userId, bool shouldBeMod, BuildContext context) async {
+    final res = await _communityRepository.toggleModRole(communityId, userId, shouldBeMod);
+    res.fold(
+          (l) => showSnackBar(context, l.message),
+          (r) => showSnackBar(context, shouldBeMod ? 'User Promoted to Admin' : 'User Demoted'),
     );
   }
 }

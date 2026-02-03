@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ এই লাইনটা মিসিং ছিল
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:stake_grow/features/auth/presentation/auth_controller.dart';
 import 'package:stake_grow/features/auth/presentation/screens/login_screen.dart';
@@ -16,7 +16,6 @@ import 'package:stake_grow/features/community/presentation/screens/community_das
 import '../features/community/presentation/screens/investment_history_screen.dart';
 import '../features/community/presentation/screens/join_community_screen.dart';
 import '../features/community/presentation/screens/transaction_history_screen.dart';
-import '../features/community/presentation/screens/user_dashboard_screen.dart';
 import '../features/donation/presentation/screens/create_donation_screen.dart';
 import '../features/investment/presentation/screens/create_investment_screen.dart';
 import '../features/loan/presentation/screens/create_loan_screen.dart';
@@ -25,12 +24,11 @@ import 'package:stake_grow/features/community/presentation/screens/settings_scre
 import 'package:stake_grow/features/community/presentation/screens/member_list_screen.dart';
 import 'package:stake_grow/features/auth/presentation/screens/edit_profile_screen.dart';
 
-// গ্লোবাল নেভিগেটর কি (Key)
+// Global Navigator Key
 final navigatorKey = GlobalKey<NavigatorState>();
 
-// রাউটার প্রভাইডার
+// Router Provider
 final routerProvider = Provider<GoRouter>((ref) {
-  // ১. অথেনটিকেশন স্টেট শোনা (লগিন নাকি লগআউট?)
   final authState = ref.watch(authStateChangeProvider);
 
   return GoRouter(
@@ -38,7 +36,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     debugLogDiagnostics: true,
 
-    // ২. রাউট লিস্ট
     routes: [
       GoRoute(
         path: '/',
@@ -59,7 +56,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/community-dashboard',
         builder: (context, state) {
-          // আমরা 'extra' প্যারামিটার দিয়ে পুরো কমিউনিটি অবজেক্ট পাস করছি
           final community = state.extra as CommunityModel;
           return CommunityDashboardScreen(community: community);
         },
@@ -67,7 +63,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/create-donation',
         builder: (context, state) {
-          // ✅ UPDATE: Handle Map Argument
           String communityId;
           bool isMonthlyDisabled = false;
 
@@ -76,13 +71,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             communityId = map['communityId'];
             isMonthlyDisabled = map['isMonthlyDisabled'] ?? false;
           } else {
-            // Fallback for older calls
             communityId = state.extra as String;
           }
 
           return CreateDonationScreen(
             communityId: communityId,
-            isMonthlyDisabled: isMonthlyDisabled, // ✅ Pass to screen
+            isMonthlyDisabled: isMonthlyDisabled,
           );
         },
       ),
@@ -110,7 +104,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/transaction-history',
         builder: (context, state) {
-          // ✅ UPDATE: স্ট্রিং বা ম্যাপ দুই ধরনের আর্গুমেন্ট হ্যান্ডেল করা
           String communityId;
           int initialIndex = 0;
 
@@ -119,7 +112,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             communityId = map['communityId'];
             initialIndex = map['initialIndex'] ?? 0;
           } else {
-            // যদি পুরনো নিয়মে শুধু স্ট্রিং আসে
             communityId = state.extra as String;
           }
 
@@ -151,7 +143,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings',
         builder: (context, state) {
           final community = state.extra as CommunityModel;
-          return SettingsScreen(community: community);
+          // ✅ FIX: Use 'communityData' instead of 'community'
+          return SettingsScreen(communityData: community);
         },
       ),
       GoRoute(
@@ -165,16 +158,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/edit-profile',
         builder: (context, state) => const EditProfileScreen(),
       ),
-      // GoRoute(
-      //   path: '/user-dashboard',
-      //   builder: (context, state) {
-      //     final community = state.extra as CommunityModel;
-      //     return UserDashboardScreen(community: community);
-      //   },
-      // ),
     ],
 
-    // ৩. রিডাইরেক্ট লজিক
     redirect: (context, state) {
       if (authState.isLoading || authState.hasError) return null;
 
@@ -182,15 +167,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggingIn = state.uri.toString() == '/login';
       final isSigningUp = state.uri.toString() == '/signup';
 
-      // ক) ইউজার লগিন নেই, কিন্তু হোম পেজে যাওয়ার চেষ্টা করছে -> লগিনে পাঠাও
       if (!isAuthenticated && !isLoggingIn && !isSigningUp) {
         return '/login';
       }
-      // খ) ইউজার লগিন আছে, কিন্তু আবার লগিন পেজে ঘুরছে -> হোমে পাঠাও
       if (isAuthenticated && (isLoggingIn || isSigningUp)) {
         return '/';
       }
-// গ) অন্যথায়, যেখানে যেতে চায় সেখানেই যেতে দাও
       return null;
     },
   );
