@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:stake_grow/core/failure.dart';
 import 'package:stake_grow/core/type_defs.dart';
+import 'package:stake_grow/core/utils/financial_calculator.dart'; // ✅ New Import
+import 'package:stake_grow/features/activity/domain/activity_model.dart';
+import 'package:stake_grow/features/donation/domain/donation_model.dart';
+import 'package:stake_grow/features/investment/domain/investment_model.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 
 final loanRepositoryProvider = Provider((ref) {
@@ -42,37 +46,45 @@ class LoanRepository {
     try {
       final communityRef = _firestore.collection('communities').doc(loan.communityId);
       final loanRef = _firestore.collection('loans').doc(loan.id);
+      final cid = loan.communityId;
 
-      final donationsSnapshot = await _firestore
-          .collection('donations')
-          .where('communityId', isEqualTo: loan.communityId)
-          .get();
+      // 1. FETCH ALL DATA
+      final donations = (await _firestore.collection('donations').where('communityId', isEqualTo: cid).get())
+          .docs.map((e) => DonationModel.fromMap(e.data())).toList();
+      final investments = (await _firestore.collection('investments').where('communityId', isEqualTo: cid).get())
+          .docs.map((e) => InvestmentModel.fromMap(e.data())).toList();
+      final loans = (await _firestore.collection('loans').where('communityId', isEqualTo: cid).get())
+          .docs.map((e) => LoanModel.fromMap(e.data())).toList();
+      final activities = (await _firestore.collection('activities').where('communityId', isEqualTo: cid).get())
+          .docs.map((e) => ActivityModel.fromMap(e.data())).toList();
 
-      Map<String, double> userTotalDonations = {};
-      double totalPool = 0.0;
+      // 2. CALCULATE LIQUID BALANCES
+      Map<String, double> userLiquidBalances = FinancialCalculator.calculateUserLiquidBalances(
+        donations: donations,
+        investments: investments,
+        loans: loans,
+        activities: activities,
+      );
 
-      for (var doc in donationsSnapshot.docs) {
-        final data = doc.data();
-        // ✅ FIX: Only consider approved money
-        if (data['status'] == 'approved') {
-          final uid = data['senderId'];
-          final amount = (data['amount'] ?? 0.0).toDouble();
-          userTotalDonations[uid] = (userTotalDonations[uid] ?? 0.0) + amount;
-          totalPool += amount;
-        }
+      // 3. CALCULATE LENDER SHARES
+      double totalLiquidPool = userLiquidBalances.values.fold(0.0, (sum, val) => sum + val);
+
+      if (totalLiquidPool < loan.amount) {
+        return left(Failure("Insufficient liquid funds to grant this loan."));
       }
 
       Map<String, double> calculatedLenderShares = {};
-      if (totalPool > 0) {
-        userTotalDonations.forEach((uid, totalDonated) {
-          if (totalDonated > 0) {
-            double sharePercentage = totalDonated / totalPool;
+      if (totalLiquidPool > 0) {
+        userLiquidBalances.forEach((uid, balance) {
+          if (balance > 0) {
+            double sharePercentage = balance / totalLiquidPool;
             double shareAmount = loan.amount * sharePercentage;
             calculatedLenderShares[uid] = double.parse(shareAmount.toStringAsFixed(2));
           }
         });
       }
 
+      // 4. TRANSACTION
       await _firestore.runTransaction((transaction) async {
         final communityDoc = await transaction.get(communityRef);
         if (!communityDoc.exists) throw Exception("Community not found");
@@ -88,7 +100,7 @@ class LoanRepository {
         transaction.update(communityRef, {'totalFund': newFund});
         transaction.update(loanRef, {
           'status': 'approved',
-          'lenderShares': calculatedLenderShares,
+          'lenderShares': calculatedLenderShares, // ✅ Based on Liquid Balance
         });
       });
 

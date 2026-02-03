@@ -173,10 +173,21 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
   // (We do NOT subtract locks here, because locks are still part of my equity, just not liquid)
   double myRemainingEquity = netContribution - myTotalExpenseShare;
 
+  print(liquidBalance);
+  print(myRemainingEquity);
+  print(totalCommunityAssets);
+  print(myLockedInInvestment);
+  print(myLockedInLoan);
+  print(myTotalExpenseShare);
+  print(expectedProfitShare);
+  print(netContribution);
+
   // 3. True Ownership Percentage
   double commPercentage = totalCommunityAssets == 0
       ? 0
-      : (myRemainingEquity / totalCommunityAssets) * 100;
+      : (liquidBalance / community.totalFund) * 100;
+
+  print(commPercentage);
 
   return AsyncValue.data(UserStats(
     totalDonated: liquidBalance,
@@ -201,4 +212,7 @@ final userStatsProvider = Provider.family<AsyncValue<UserStats>, String>((ref, c
     activeLoanAmount: activeDebt,
     isCurrentMonthPaid: isPaid,
   ));
+
+  print(activeDebt);
 });
+
