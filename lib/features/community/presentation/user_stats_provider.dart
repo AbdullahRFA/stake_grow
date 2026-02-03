@@ -28,6 +28,9 @@ class UserStats {
   final List<DonationModel> monthlyList;
   final List<DonationModel> randomList;
 
+  // ✅ NEW: List of all my deposit requests (pending/approved/rejected) for UI
+  final List<DonationModel> allMyDeposits;
+
   final List<LoanModel> pendingLoans;
   final List<LoanModel> activeLoans;
   final List<LoanModel> repaidLoans;
@@ -51,6 +54,7 @@ class UserStats {
     required this.randomPercent,
     required this.monthlyList,
     required this.randomList,
+    required this.allMyDeposits, // ✅
     required this.pendingLoans,
     required this.activeLoans,
     required this.repaidLoans,
@@ -68,7 +72,7 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       totalDonated: 0, totalLifetimeContributed: 0, contributionPercentage: 0,
       lockedInInvestment: 0, lockedInLoan: 0, totalExpenseShare: 0, activeInvestmentProfitExpectation: 0,
       monthlyDonated: 0, randomDonated: 0, monthlyPercent: 0, randomPercent: 0,
-      monthlyList: [], randomList: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [], myImpactActivities: [],
+      monthlyList: [], randomList: [], allMyDeposits: [], pendingLoans: [], activeLoans: [], repaidLoans: [], myFundedLoans: [], myImpactActivities: [],
       activeLoanAmount: 0, isCurrentMonthPaid: false,
     ));
   }
@@ -79,8 +83,14 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
   final activityRepo = ref.watch(activityRepositoryProvider);
 
   return donationRepo.getDonations(community.id).asyncMap((donations) async {
-    final myDonations = donations.where((d) => d.senderId == user.uid).toList();
-    double netContribution = myDonations.fold(0, (sum, item) => sum + item.amount);
+    // 1. Filter ALL my deposits for history
+    final allMyDeposits = donations.where((d) => d.senderId == user.uid).toList();
+
+    // 2. Filter APPROVED deposits for calculations
+    final myApprovedDonations = allMyDeposits.where((d) => d.status == 'approved').toList();
+
+    // ✅ Calculate Net Contribution based on APPROVED only
+    double netContribution = myApprovedDonations.fold(0, (sum, item) => sum + item.amount);
 
     // --- Investments ---
     final investments = await investRepo.getInvestments(community.id).first;
@@ -130,9 +140,9 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
     // Liquid Balance Calculation
     double liquidBalance = netContribution - myLockedInInvestment - myLockedInLoan - myTotalExpenseShare;
 
-    // --- Others ---
-    final monthlyList = myDonations.where((d) => d.type == 'Monthly').toList();
-    final randomList = myDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
+    // --- Others (Using Approved List) ---
+    final monthlyList = myApprovedDonations.where((d) => d.type == 'Monthly').toList();
+    final randomList = myApprovedDonations.where((d) => d.type == 'Random' || d.type == 'One-time').toList();
     final now = DateTime.now();
     bool isPaid = monthlyList.any((d) => d.timestamp.month == now.month && d.timestamp.year == now.year);
     double monthlyTotal = monthlyList.fold(0, (sum, item) => sum + item.amount);
@@ -143,20 +153,14 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
     double totalActiveInvested = activeInvestments.fold(0, (sum, i) => sum + i.investedAmount);
     double totalActiveLoaned = allActiveLoans.fold(0, (sum, l) => sum + l.amount);
 
-    // Total Community Assets = Current Cash + IOUs (Loans + Investments)
     double totalCommunityAssets = community.totalFund + totalActiveInvested + totalActiveLoaned;
-
-    // ✅ FIX: Calculate percentage based on Remaining Equity (Contribution - Expenses)
     double myRemainingEquity = netContribution - myTotalExpenseShare;
-
-    double commPercentage = totalCommunityAssets == 0
-        ? 0
-        : (myRemainingEquity / totalCommunityAssets) * 100;
+    double commPercentage = totalCommunityAssets == 0 ? 0 : (myRemainingEquity / totalCommunityAssets) * 100;
 
     return UserStats(
       totalDonated: liquidBalance,
       totalLifetimeContributed: netContribution,
-      contributionPercentage: commPercentage, // ✅ Now uses corrected value
+      contributionPercentage: commPercentage,
       lockedInInvestment: myLockedInInvestment,
       lockedInLoan: myLockedInLoan,
       totalExpenseShare: myTotalExpenseShare,
@@ -167,6 +171,7 @@ final userStatsProvider = StreamProvider.family<UserStats, CommunityModel>((ref,
       randomPercent: randomPct,
       monthlyList: monthlyList,
       randomList: randomList,
+      allMyDeposits: allMyDeposits, // ✅ Passing raw list including pending
       pendingLoans: pending,
       activeLoans: activeTaken,
       repaidLoans: repaid,

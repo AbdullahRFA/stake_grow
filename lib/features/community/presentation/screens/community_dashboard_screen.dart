@@ -10,6 +10,7 @@ import 'package:stake_grow/features/community/domain/community_model.dart';
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
+import 'package:stake_grow/features/donation/presentation/donation_controller.dart';
 import 'package:stake_grow/features/loan/domain/loan_model.dart';
 import 'package:stake_grow/features/loan/presentation/loan_controller.dart';
 import 'package:stake_grow/features/activity/domain/activity_model.dart';
@@ -35,6 +36,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
         final statsAsync = ref.watch(userStatsProvider(liveCommunity));
         final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
+        final donationsAsync = ref.watch(communityDonationsProvider(liveCommunity.id));
 
         return Scaffold(
           appBar: AppBar(
@@ -92,6 +94,19 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
 
+                        // 1A. Admin Deposit Requests Card
+                        if (isAdmin)
+                          donationsAsync.when(
+                            data: (donations) {
+                              final pendingDeposits = donations.where((d) => d.status == 'pending').toList();
+                              if (pendingDeposits.isEmpty) return const SizedBox();
+                              return _buildAdminDepositCard(context, pendingDeposits, ref);
+                            },
+                            loading: () => const SizedBox(),
+                            error: (e, s) => Text("Error loading deposits: $e"),
+                          ),
+                        if(isAdmin) const SizedBox(height: 16),
+
                         // 2. Due/Warning Card
                         DueWarningCard(stats: stats),
                         const SizedBox(height: 16),
@@ -113,6 +128,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           subtitle: 'You own ${stats.contributionPercentage.toStringAsFixed(1)}% of the fund',
                         ),
                         const SizedBox(height: 12),
+
+                        // 4A. My Deposit History Card (Updated with button)
+                        _buildMyDepositHistoryCard(context, stats.allMyDeposits, ref),
+                        const SizedBox(height: 16),
 
                         // 5. Profit/Loss Card
                         _buildProfitLossCard(stats),
@@ -182,6 +201,376 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // --- Helper Widgets ---
+
+  // Admin Verification Card
+  Widget _buildAdminDepositCard(BuildContext context, List<DonationModel> pendingDeposits, WidgetRef ref) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.orange),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified_user, color: Colors.orange),
+              SizedBox(width: 8),
+              Text("Deposit Requests", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: pendingDeposits.length,
+            itemBuilder: (context, index) {
+              final deposit = pendingDeposits[index];
+              return Card(
+                elevation: 0,
+                color: Colors.white,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  title: Text(deposit.senderName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Amount: ৳${deposit.amount} (${deposit.type})"),
+                      Text("Via: ${deposit.paymentMethod}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      if (deposit.transactionId != null)
+                        Text("TrxID: ${deposit.transactionId}", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                    ],
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed: () => _showVerifyDepositDialog(context, ref, deposit),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                    child: const Text("Verify"),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Verify Deposit Dialog
+  void _showVerifyDepositDialog(BuildContext context, WidgetRef ref, DonationModel deposit) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Verify Deposit"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("User: ${deposit.senderName}"),
+            Text("Amount: ৳${deposit.amount}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 5),
+            Text("Method: ${deposit.paymentMethod}"),
+            if(deposit.phoneNumber != null) Text("Phone: ${deposit.phoneNumber}"),
+            if(deposit.transactionId != null) Text("TrxID: ${deposit.transactionId}"),
+            const SizedBox(height: 15),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: "Reason (If Rejecting)",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final reason = reasonController.text.trim().isEmpty ? "Admin rejected request" : reasonController.text.trim();
+              ref.read(donationControllerProvider.notifier).rejectDonation(deposit.id, reason, context);
+              Navigator.pop(ctx);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Reject"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(donationControllerProvider.notifier).approveDonation(deposit, context);
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            child: const Text("Approve"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // My Deposit History Card (User View)
+  Widget _buildMyDepositHistoryCard(BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
+    final previewDeposits = allDeposits.where((d) => d.status != 'approved').toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.history, color: Colors.blue, size: 24),
+              SizedBox(width: 10),
+              Text("My Deposit Status", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (previewDeposits.isEmpty && allDeposits.isNotEmpty)
+            const Text("All recent deposits are approved.", style: TextStyle(color: Colors.grey)),
+
+          if (previewDeposits.isNotEmpty)
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: previewDeposits.length > 2 ? 2 : previewDeposits.length,
+              itemBuilder: (context, index) {
+                final deposit = previewDeposits[index];
+                Color statusColor = deposit.status == 'pending' ? Colors.orange : Colors.red;
+                IconData statusIcon = deposit.status == 'pending' ? Icons.hourglass_empty : Icons.cancel;
+
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: statusColor.withOpacity(0.1),
+                    child: Icon(statusIcon, color: statusColor, size: 20),
+                  ),
+                  title: Text("৳${deposit.amount} - ${deposit.status.toUpperCase()}",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 14)),
+                  subtitle: deposit.status == 'rejected'
+                      ? Text("Note: ${deposit.rejectionReason}", style: const TextStyle(color: Colors.red, fontSize: 12))
+                      : Text(DateFormat('dd MMM, hh:mm a').format(deposit.timestamp)),
+                );
+              },
+            ),
+
+          const SizedBox(height: 10),
+          // ✅ Button to View Full Details
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () {
+                _showDepositDetails(context, allDeposits, ref);
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.blue),
+              ),
+              child: const Text("View Deposit Details", style: TextStyle(color: Colors.blue)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ New: Detailed Bottom Sheet with Edit/Delete for Pending
+  void _showDepositDetails(BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Deposit History", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Divider(),
+              Expanded(
+                child: allDeposits.isEmpty
+                    ? const Center(child: Text("No deposit history found."))
+                    : ListView.builder(
+                  itemCount: allDeposits.length,
+                  itemBuilder: (context, index) {
+                    final deposit = allDeposits[index];
+                    Color statusColor;
+                    IconData statusIcon;
+
+                    switch (deposit.status) {
+                      case 'approved':
+                        statusColor = Colors.green;
+                        statusIcon = Icons.check_circle;
+                        break;
+                      case 'rejected':
+                        statusColor = Colors.red;
+                        statusIcon = Icons.cancel;
+                        break;
+                      default:
+                        statusColor = Colors.orange;
+                        statusIcon = Icons.hourglass_empty;
+                    }
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: statusColor.withOpacity(0.1),
+                          child: Icon(statusIcon, color: statusColor, size: 24),
+                        ),
+                        title: Text("৳${deposit.amount}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Type: ${deposit.type} | Method: ${deposit.paymentMethod}"),
+                            Text("Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(deposit.timestamp)}"),
+                            if (deposit.transactionId != null)
+                              Text("TrxID: ${deposit.transactionId}", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                            if (deposit.status == 'rejected')
+                              Text("Note: ${deposit.rejectionReason}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        trailing: deposit.status == 'pending'
+                            ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showEditDepositDialog(context, ref, deposit);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                _showDeleteDepositDialog(context, ref, deposit.id);
+                              },
+                            ),
+                          ],
+                        )
+                            : Text(deposit.status.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ New: Edit Deposit Dialog
+  void _showEditDepositDialog(BuildContext context, WidgetRef ref, DonationModel deposit) {
+    final amountController = TextEditingController(text: deposit.amount.toString());
+    final trxIdController = TextEditingController(text: deposit.transactionId);
+    final phoneController = TextEditingController(text: deposit.phoneNumber);
+    String selectedMethod = deposit.paymentMethod;
+    List<String> paymentMethods = ['Bkash', 'Rocket', 'Nagad', 'Manual (Cash)'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Edit Deposit Request"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: "Amount (৳)"),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: paymentMethods.contains(selectedMethod) ? selectedMethod : 'Manual (Cash)',
+                      decoration: const InputDecoration(labelText: 'Payment Method'),
+                      items: paymentMethods.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      onChanged: (val) => setState(() => selectedMethod = val!),
+                    ),
+                    if (selectedMethod != 'Manual (Cash)') ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(labelText: 'Phone Number'),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: trxIdController,
+                        decoration: const InputDecoration(labelText: 'Transaction ID'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                ElevatedButton(
+                  onPressed: () {
+                    final newAmount = double.tryParse(amountController.text) ?? deposit.amount;
+
+                    final updatedDeposit = DonationModel(
+                      id: deposit.id,
+                      communityId: deposit.communityId,
+                      senderId: deposit.senderId,
+                      senderName: deposit.senderName,
+                      amount: newAmount,
+                      type: deposit.type,
+                      timestamp: deposit.timestamp,
+                      status: 'pending',
+                      rejectionReason: null, // Clear rejection reason if editing
+                      paymentMethod: selectedMethod,
+                      transactionId: selectedMethod != 'Manual (Cash)' ? trxIdController.text.trim() : null,
+                      phoneNumber: selectedMethod != 'Manual (Cash)' ? phoneController.text.trim() : null,
+                    );
+
+                    ref.read(donationControllerProvider.notifier).updateDonation(updatedDeposit, ctx);
+                  },
+                  child: const Text("Update"),
+                ),
+              ],
+            );
+          }
+      ),
+    );
+  }
+
+  // ✅ New: Delete Deposit Dialog
+  void _showDeleteDepositDialog(BuildContext context, WidgetRef ref, String depositId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Request"),
+        content: const Text("Are you sure you want to delete this deposit request?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context); // Close details sheet if open
+              ref.read(donationControllerProvider.notifier).deleteDonation(depositId, context);
+            },
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ... (Rest of existing widgets: _buildExpenseImpactCard, _buildActiveLendingCard, etc. same as before)
 
   Widget _buildExpenseImpactCard(BuildContext context, UserStats stats, String communityId) {
     if (stats.totalExpenseShare == 0) return const SizedBox();
