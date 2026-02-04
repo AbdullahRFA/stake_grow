@@ -136,7 +136,7 @@ class CommunityDashboardScreen extends ConsumerWidget {
                                   ),
 
                                 ),
-                                const SizedBox(height: 40),
+                                const SizedBox(height: 10),
                               ],
                             ),
                           ),
