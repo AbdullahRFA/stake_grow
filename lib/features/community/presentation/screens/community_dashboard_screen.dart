@@ -9,8 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/activity/domain/activity_model.dart';
 import 'package:stake_grow/features/community/domain/community_model.dart';
-import 'package:stake_grow/features/community/domain/withdrawal_model.dart'; // ✅ Import Withdrawal Model
-import 'package:stake_grow/features/community/presentation/community_controller.dart'; // ✅ Import Controller
+import 'package:stake_grow/features/community/domain/withdrawal_model.dart';
+import 'package:stake_grow/features/community/presentation/community_controller.dart';
 import 'package:stake_grow/features/community/presentation/transaction_providers.dart';
 import 'package:stake_grow/features/community/presentation/user_stats_provider.dart';
 import 'package:stake_grow/features/donation/domain/donation_model.dart';
@@ -38,10 +38,12 @@ class CommunityDashboardScreen extends ConsumerWidget {
         final currentUser = FirebaseAuth.instance.currentUser;
 
         // 1. Check Main Admin (Owner)
-        final isMainAdmin = currentUser != null && currentUser.uid == liveCommunity.adminId;
+        final isMainAdmin =
+            currentUser != null && currentUser.uid == liveCommunity.adminId;
 
         // 2. Check Co-Admin
-        final isCoAdmin = currentUser != null && liveCommunity.mods.contains(currentUser.uid);
+        final isCoAdmin =
+            currentUser != null && liveCommunity.mods.contains(currentUser.uid);
 
         // 3. Combined Privilege for operational tasks
         final hasAdminPrivileges = isMainAdmin || isCoAdmin;
@@ -49,23 +51,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
         // Watch Streams
         final statsAsync = ref.watch(userStatsProvider(liveCommunity.id));
         final loansAsync = ref.watch(communityLoansProvider(liveCommunity.id));
-        final donationsAsync = ref.watch(communityDonationsProvider(liveCommunity.id));
-        // ✅ NEW: Watch Withdrawals Stream
-        final withdrawalsAsync = ref.watch(communityWithdrawalsProvider(liveCommunity.id));
+        final donationsAsync =
+        ref.watch(communityDonationsProvider(liveCommunity.id));
+        final withdrawalsAsync =
+        ref.watch(communityWithdrawalsProvider(liveCommunity.id));
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text(liveCommunity.name),
-            centerTitle: true,
-            actions: [
-              IconButton(
-                onPressed: () {
-                  context.push('/settings', extra: liveCommunity);
-                },
-                icon: const Icon(Icons.settings),
-              ),
-            ],
-          ),
+          backgroundColor: Colors.grey[50], // Modern light background
           body: statsAsync.when(
             loading: () => const Loader(),
             error: (e, s) => Center(child: Text('Error: $e')),
@@ -74,150 +66,287 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 loading: () => const Loader(),
                 error: (e, s) => Center(child: Text('Error loading loans: $e')),
                 data: (allLoans) {
-                  final myLoans = allLoans.where((l) => l.borrowerId == currentUser?.uid).toList();
+                  final myLoans = allLoans
+                      .where((l) => l.borrowerId == currentUser?.uid)
+                      .toList();
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 1. Hero Card
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Colors.teal, Colors.tealAccent],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                  return CustomScrollView(
+                    slivers: [
+                      // 1. Modern Sliver App Bar & Hero Section
+                      SliverAppBar(
+                        expandedHeight: 220.0,
+                        floating: false,
+                        pinned: true,
+                        backgroundColor: Colors.teal,
+                        elevation: 0,
+                        actions: [
+                          IconButton(
+                            onPressed: () {
+                              context.push('/settings', extra: liveCommunity);
+                            },
+                            icon: const Icon(Icons.settings, color: Colors.white),
+                          ),
+                        ],
+                        flexibleSpace: FlexibleSpaceBar(
+                          title: Text(
+                            liveCommunity.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
+                          ),
+                          centerTitle: true,
+                          background: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.teal, Colors.tealAccent],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(height: 40),
+                                const Text('Total Community Fund',
+                                    style: TextStyle(
+                                        color: Colors.white70, fontSize: 14)),
+                                const SizedBox(height: 5),
+                                Text(
+                                  '৳ ${liveCommunity.totalFund.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Container(
+                                  // margin: const EdgeInsets.only(top: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${liveCommunity.members.length} Members Active',
+                                    style: const TextStyle(
+                                        color: Colors.white, fontSize: 12),
+                                  ),
+
+                                ),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // 2. Body Content
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16.0),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            // Admin Alerts Section
+                            if (hasAdminPrivileges) ...[
+                              donationsAsync.when(
+                                data: (donations) {
+                                  final pendingDeposits = donations
+                                      .where((d) => d.status == 'pending')
+                                      .toList();
+                                  if (pendingDeposits.isEmpty) {
+                                    return const SizedBox();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildAdminDepositCard(
+                                        context, pendingDeposits, ref),
+                                  );
+                                },
+                                loading: () => const SizedBox(),
+                                error: (e, s) =>
+                                    Text("Error loading deposits: $e"),
+                              ),
+                              withdrawalsAsync.when(
+                                data: (withdrawals) {
+                                  final pending = withdrawals
+                                      .where((w) => w.status == 'pending')
+                                      .toList();
+                                  if (pending.isEmpty) return const SizedBox();
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildAdminWithdrawalCard(
+                                        context, pending, ref),
+                                  );
+                                },
+                                loading: () => const SizedBox(),
+                                error: (e, s) => const SizedBox(),
+                              ),
                             ],
-                          ),
-                          child: Column(
-                            children: [
-                              const Text('Total Community Fund', style: TextStyle(color: Colors.white70)),
-                              const SizedBox(height: 10),
-                              Text('৳ ${liveCommunity.totalFund.toStringAsFixed(2)}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 10),
-                              Text('${liveCommunity.members.length} Members Active', style: const TextStyle(color: Colors.white)),
+
+                            // Due Warning Widget
+                            DueWarningCard(stats: stats),
+                            const SizedBox(height: 16),
+
+                            // Admin Invite Code
+                            if (hasAdminPrivileges) ...[
+                              _buildInviteCard(
+                                  context, liveCommunity.inviteCode),
+                              const SizedBox(height: 24),
                             ],
-                          ),
+
+                            // Personal Stats Section Title
+                            const Padding(
+                              padding: EdgeInsets.only(left: 8.0, bottom: 10),
+                              child: Text(
+                                "Your Financial Overview",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+
+                            // My Liquid Balance
+                            _buildStatCard(
+                              icon: Icons.account_balance_wallet_rounded,
+                              color: Colors.blueAccent,
+                              title: 'Liquid Balance',
+                              value:
+                              '৳ ${stats.totalDonated.toStringAsFixed(0)}',
+                              subtitle:
+                              '${stats.contributionPercentage.toStringAsFixed(1)}% ownership',
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Deposit History
+                            _buildMyDepositHistoryCard(
+                                context, stats.allMyDeposits, ref),
+                            const SizedBox(height: 16),
+
+                            // Profit / Loss
+                            _buildProfitLossCard(stats),
+                            const SizedBox(height: 12),
+
+                            // Subscription Breakdown
+                            _buildSubscriptionCard(context, stats),
+                            const SizedBox(height: 16),
+
+                            // Investments & Loans Section Title
+                            const Padding(
+                              padding: EdgeInsets.only(left: 8.0, bottom: 10),
+                              child: Text(
+                                "Portfolio & Activities",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+
+                            // Investments
+                            _buildInvestmentCard(context, stats, liveCommunity),
+                            const SizedBox(height: 16),
+
+                            // Active Lending
+                            _buildActiveLendingCard(
+                                context, stats, allLoans, currentUser?.uid),
+                            const SizedBox(height: 16),
+
+                            // Expense Impact
+                            _buildExpenseImpactCard(
+                                context, stats, liveCommunity.id),
+                            const SizedBox(height: 16),
+
+                            // Loans
+                            if (hasAdminPrivileges) ...[
+                              _buildAdminLoanOverviewCard(
+                                  context, allLoans, ref),
+                              const SizedBox(height: 16),
+                            ],
+                            _buildLoanSummaryCard(context, myLoans, ref,
+                                isMyLoan: true),
+                            const SizedBox(height: 30),
+
+                            // Quick Actions
+                            const Text("Quick Actions",
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87)),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4))
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildActionButton(
+                                      Icons.volunteer_activism, 'Deposit', () {
+                                    context.push('/create-donation', extra: {
+                                      'communityId': liveCommunity.id,
+                                      'isMonthlyDisabled':
+                                      stats.isCurrentMonthPaid,
+                                    });
+                                  }),
+                                  _buildActionButton(Icons.request_quote,
+                                      'Loan', () {
+                                        context.push('/create-loan',
+                                            extra: liveCommunity.id);
+                                      }),
+                                  _buildActionButton(
+                                      Icons.bar_chart,
+                                      hasAdminPrivileges
+                                          ? 'Invest'
+                                          : 'Investments', () {
+                                    if (hasAdminPrivileges) {
+                                      context.push('/create-investment',
+                                          extra: liveCommunity.id);
+                                    } else {
+                                      context.push('/investment-history',
+                                          extra: liveCommunity.id);
+                                    }
+                                  }),
+                                  _buildActionButton(
+                                      Icons.event,
+                                      hasAdminPrivileges
+                                          ? 'Activity'
+                                          : 'Activities', () {
+                                    if (hasAdminPrivileges) {
+                                      context.push('/create-activity',
+                                          extra: liveCommunity.id);
+                                    } else {
+                                      context.push('/activity-history',
+                                          extra: liveCommunity.id);
+                                    }
+                                  }),
+                                  if (hasAdminPrivileges)
+                                    _buildActionButton(
+                                        Icons.history, 'History', () {
+                                      context.push('/transaction-history',
+                                          extra: liveCommunity.id);
+                                    }),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                          ]),
                         ),
-                        const SizedBox(height: 16),
-
-                        // 1A. Admin Deposit Requests Card
-                        if (hasAdminPrivileges)
-                          donationsAsync.when(
-                            data: (donations) {
-                              final pendingDeposits = donations.where((d) => d.status == 'pending').toList();
-                              if (pendingDeposits.isEmpty) return const SizedBox();
-                              return _buildAdminDepositCard(context, pendingDeposits, ref);
-                            },
-                            loading: () => const SizedBox(),
-                            error: (e, s) => Text("Error loading deposits: $e"),
-                          ),
-                        if(hasAdminPrivileges) const SizedBox(height: 16),
-
-                        // ✅ 1B. Admin Withdrawal Requests Card (New Feature)
-                        if (hasAdminPrivileges)
-                          withdrawalsAsync.when(
-                            data: (withdrawals) {
-                              final pending = withdrawals.where((w) => w.status == 'pending').toList();
-                              // Call the helper widget here
-                              return _buildAdminWithdrawalCard(context, pending, ref);
-                            },
-                            loading: () => const SizedBox(),
-                            error: (e, s) => const SizedBox(),
-                          ),
-                        if(hasAdminPrivileges) const SizedBox(height: 16),
-
-                        // 2. Due/Warning Card
-                        DueWarningCard(stats: stats),
-                        const SizedBox(height: 16),
-
-                        // 3. Invite Code (Admin)
-                        if (hasAdminPrivileges) ...[
-                          _buildInviteCard(context, liveCommunity.inviteCode),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // 4. Contribution Card
-                        const Text("Your Contributions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 12),
-                        _buildStatCard(
-                          icon: Icons.volunteer_activism,
-                          color: Colors.blueAccent,
-                          title: 'My Liquid Balance',
-                          value: '৳ ${stats.totalDonated.toStringAsFixed(0)}',
-                          subtitle: 'You own ${stats.contributionPercentage.toStringAsFixed(1)}% of the fund',
-                        ),
-                        const SizedBox(height: 12),
-
-                        // 4A. My Deposit History Card
-                        _buildMyDepositHistoryCard(context, stats.allMyDeposits, ref),
-                        const SizedBox(height: 16),
-
-                        // 5. Profit/Loss Card
-                        _buildProfitLossCard(stats),
-                        const SizedBox(height: 12),
-
-                        // 6. Subscription Breakdown
-                        _buildSubscriptionCard(context, stats),
-                        const SizedBox(height: 16),
-
-                        // 7. Investment Overview
-                        _buildInvestmentCard(context, stats, liveCommunity),
-                        const SizedBox(height: 16),
-
-                        // 8. Active Lending Portfolio
-                        _buildActiveLendingCard(context, stats, allLoans, currentUser?.uid),
-                        const SizedBox(height: 16),
-
-                        // 9. Activity/Expense Impact Card
-                        _buildExpenseImpactCard(context, stats, liveCommunity.id),
-                        const SizedBox(height: 16),
-
-                        // 10. Admin Loan Overview
-                        if (hasAdminPrivileges) ...[
-                          _buildAdminLoanOverviewCard(context, allLoans, ref),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // 11. My Loan Overview
-                        _buildLoanSummaryCard(context, myLoans, ref, isMyLoan: true),
-                        const SizedBox(height: 30),
-
-                        // 12. Quick Actions
-                        const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildActionButton(Icons.volunteer_activism, 'Deposit', () {
-                              context.push('/create-donation', extra: {
-                                'communityId': liveCommunity.id,
-                                'isMonthlyDisabled': stats.isCurrentMonthPaid,
-                              });
-                            }),
-                            _buildActionButton(Icons.request_quote, 'Loan', () { context.push('/create-loan', extra: liveCommunity.id); }),
-                            _buildActionButton(Icons.bar_chart, hasAdminPrivileges ? 'Invest' : 'Investments', () {
-                              if (hasAdminPrivileges) { context.push('/create-investment', extra: liveCommunity.id); }
-                              else { context.push('/investment-history', extra: liveCommunity.id); }
-                            }),
-                            _buildActionButton(Icons.event, hasAdminPrivileges ? 'Activity' : 'Activities', () {
-                              if (hasAdminPrivileges) { context.push('/create-activity', extra: liveCommunity.id); }
-                              else { context.push('/activity-history', extra: liveCommunity.id); }
-                            }),
-                            if (hasAdminPrivileges) _buildActionButton(Icons.history, 'History', () { context.push('/transaction-history', extra: liveCommunity.id); }),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
+                      ),
+                    ],
                   );
                 },
               );
@@ -231,26 +360,42 @@ class CommunityDashboardScreen extends ConsumerWidget {
   // --- Helper Widgets ---
 
   // ✅ NEW: Admin Withdrawal Management Card
-  Widget _buildAdminWithdrawalCard(BuildContext context, List<WithdrawalModel> requests, WidgetRef ref) {
-    if(requests.isEmpty) return const SizedBox();
+  Widget _buildAdminWithdrawalCard(
+      BuildContext context, List<WithdrawalModel> requests, WidgetRef ref) {
+    if (requests.isEmpty) return const SizedBox();
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.red.shade200),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.red.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.warning, color: Colors.red),
-              SizedBox(width: 8),
-              Text("Withdrawal Requests", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.warning_amber_rounded,
+                      color: Colors.red)),
+              const SizedBox(width: 10),
+              const Text("Action Needed: Withdrawals",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.red)),
             ],
           ),
           const SizedBox(height: 10),
@@ -261,8 +406,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final req = requests[index];
               return Card(
+                elevation: 0,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  title: Text("${req.userName} (${req.type})"),
+                  title: Text("${req.userName} (${req.type})",
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("Amount: ৳${req.amount}\nReason: ${req.reason}"),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -271,14 +421,18 @@ class CommunityDashboardScreen extends ConsumerWidget {
                         icon: const Icon(Icons.check_circle, color: Colors.green),
                         onPressed: () {
                           // Approve
-                          ref.read(communityControllerProvider.notifier).approveWithdrawal(req, context);
+                          ref
+                              .read(communityControllerProvider.notifier)
+                              .approveWithdrawal(req, context);
                         },
                       ),
                       IconButton(
                         icon: const Icon(Icons.cancel, color: Colors.red),
                         onPressed: () {
                           // Reject
-                          ref.read(communityControllerProvider.notifier).rejectWithdrawal(req.id, context);
+                          ref
+                              .read(communityControllerProvider.notifier)
+                              .rejectWithdrawal(req.id, context);
                         },
                       ),
                     ],
@@ -293,23 +447,40 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // Admin Verification Card
-  Widget _buildAdminDepositCard(BuildContext context, List<DonationModel> pendingDeposits, WidgetRef ref) {
+  Widget _buildAdminDepositCard(
+      BuildContext context, List<DonationModel> pendingDeposits, WidgetRef ref) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.orange),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.orange.shade200),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.orange.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.verified_user, color: Colors.orange),
-              SizedBox(width: 8),
-              Text("Deposit Requests", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.verified_user_rounded,
+                      color: Colors.orange)),
+              const SizedBox(width: 10),
+              const Text("Verify Deposits",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.deepOrange)),
             ],
           ),
           const SizedBox(height: 10),
@@ -323,20 +494,32 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 elevation: 0,
                 color: Colors.white,
                 margin: const EdgeInsets.symmetric(vertical: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  title: Text(deposit.senderName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(deposit.senderName,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Amount: ৳${deposit.amount} (${deposit.type})"),
-                      Text("Via: ${deposit.paymentMethod}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text("Via: ${deposit.paymentMethod}",
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.grey)),
                       if (deposit.transactionId != null)
-                        Text("TrxID: ${deposit.transactionId}", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                        Text("TrxID: ${deposit.transactionId}",
+                            style: const TextStyle(
+                                fontSize: 11, fontStyle: FontStyle.italic)),
                     ],
                   ),
                   trailing: ElevatedButton(
-                    onPressed: () => _showVerifyDepositDialog(context, ref, deposit),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                    onPressed: () =>
+                        _showVerifyDepositDialog(context, ref, deposit),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8))),
                     child: const Text("Verify"),
                   ),
                 ),
@@ -349,22 +532,28 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // Verify Deposit Dialog
-  void _showVerifyDepositDialog(BuildContext context, WidgetRef ref, DonationModel deposit) {
+  void _showVerifyDepositDialog(
+      BuildContext context, WidgetRef ref, DonationModel deposit) {
     final reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("Verify Deposit"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("User: ${deposit.senderName}"),
-            Text("Amount: ৳${deposit.amount}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text("Amount: ৳${deposit.amount}",
+                style:
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 5),
             Text("Method: ${deposit.paymentMethod}"),
-            if(deposit.phoneNumber != null) Text("Phone: ${deposit.phoneNumber}"),
-            if(deposit.transactionId != null) Text("TrxID: ${deposit.transactionId}"),
+            if (deposit.phoneNumber != null)
+              Text("Phone: ${deposit.phoneNumber}"),
+            if (deposit.transactionId != null)
+              Text("TrxID: ${deposit.transactionId}"),
             const SizedBox(height: 15),
             TextField(
               controller: reasonController,
@@ -378,8 +567,12 @@ class CommunityDashboardScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () {
-              final reason = reasonController.text.trim().isEmpty ? "Admin rejected request" : reasonController.text.trim();
-              ref.read(donationControllerProvider.notifier).rejectDonation(deposit.id, reason, context);
+              final reason = reasonController.text.trim().isEmpty
+                  ? "Admin rejected request"
+                  : reasonController.text.trim();
+              ref
+                  .read(donationControllerProvider.notifier)
+                  .rejectDonation(deposit.id, reason, context);
               Navigator.pop(ctx);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -387,10 +580,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              ref.read(donationControllerProvider.notifier).approveDonation(deposit, context);
+              ref
+                  .read(donationControllerProvider.notifier)
+                  .approveDonation(deposit, context);
               Navigator.pop(ctx);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green, foregroundColor: Colors.white),
             child: const Text("Approve"),
           ),
         ],
@@ -399,17 +595,24 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // My Deposit History Card (User View)
-  Widget _buildMyDepositHistoryCard(BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
-    final previewDeposits = allDeposits.where((d) => d.status != 'approved').toList();
+  Widget _buildMyDepositHistoryCard(
+      BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
+    final previewDeposits =
+    allDeposits.where((d) => d.status != 'approved').toList();
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
+        border: Border.all(color: Colors.blue.withOpacity(0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -418,23 +621,30 @@ class CommunityDashboardScreen extends ConsumerWidget {
             children: [
               Icon(Icons.history, color: Colors.blue, size: 24),
               SizedBox(width: 10),
-              Text("My Deposit Status", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text("My Deposit Status",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 10),
 
           if (previewDeposits.isEmpty && allDeposits.isNotEmpty)
-            const Text("All recent deposits are approved.", style: TextStyle(color: Colors.grey)),
+            const Text("All recent deposits are approved.",
+                style: TextStyle(color: Colors.grey)),
 
           if (previewDeposits.isNotEmpty)
-            ListView.builder(
+            ListView.separated(
+              separatorBuilder: (c, i) => const Divider(),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: previewDeposits.length > 2 ? 2 : previewDeposits.length,
+              itemCount:
+              previewDeposits.length > 2 ? 2 : previewDeposits.length,
               itemBuilder: (context, index) {
                 final deposit = previewDeposits[index];
-                Color statusColor = deposit.status == 'pending' ? Colors.orange : Colors.red;
-                IconData statusIcon = deposit.status == 'pending' ? Icons.hourglass_empty : Icons.cancel;
+                Color statusColor =
+                deposit.status == 'pending' ? Colors.orange : Colors.red;
+                IconData statusIcon = deposit.status == 'pending'
+                    ? Icons.hourglass_empty
+                    : Icons.cancel;
 
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -442,11 +652,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     backgroundColor: statusColor.withOpacity(0.1),
                     child: Icon(statusIcon, color: statusColor, size: 20),
                   ),
-                  title: Text("৳${deposit.amount} - ${deposit.status.toUpperCase()}",
-                      style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 14)),
+                  title: Text(
+                      "৳${deposit.amount} - ${deposit.status.toUpperCase()}",
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                          fontSize: 14)),
                   subtitle: deposit.status == 'rejected'
-                      ? Text("Note: ${deposit.rejectionReason}", style: const TextStyle(color: Colors.red, fontSize: 12))
-                      : Text(DateFormat('dd MMM, hh:mm a').format(deposit.timestamp)),
+                      ? Text("Note: ${deposit.rejectionReason}",
+                      style: const TextStyle(color: Colors.red, fontSize: 12))
+                      : Text(DateFormat('dd MMM, hh:mm a')
+                      .format(deposit.timestamp)),
                 );
               },
             ),
@@ -461,8 +677,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
               },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Colors.blue),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text("View Deposit Details", style: TextStyle(color: Colors.blue)),
+              child: const Text("View Full Deposit Details",
+                  style: TextStyle(color: Colors.blue)),
             ),
           ),
         ],
@@ -471,17 +690,20 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // ✅ New: Detailed Bottom Sheet with Edit/Delete for Pending
-  void _showDepositDetails(BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
+  void _showDepositDetails(
+      BuildContext context, List<DonationModel> allDeposits, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Deposit History", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text("Deposit History",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               const Divider(),
               Expanded(
@@ -509,22 +731,35 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     }
 
                     return Card(
+                      elevation: 0,
+                      color: Colors.grey[50],
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: statusColor.withOpacity(0.1),
-                          child: Icon(statusIcon, color: statusColor, size: 24),
+                          child: Icon(statusIcon,
+                              color: statusColor, size: 24),
                         ),
-                        title: Text("৳${deposit.amount}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        title: Text("৳${deposit.amount}",
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Type: ${deposit.type} | Method: ${deposit.paymentMethod}"),
-                            Text("Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(deposit.timestamp)}"),
+                            Text(
+                                "Type: ${deposit.type} | Method: ${deposit.paymentMethod}"),
+                            Text(
+                                "Date: ${DateFormat('dd MMM yyyy, hh:mm a').format(deposit.timestamp)}"),
                             if (deposit.transactionId != null)
-                              Text("TrxID: ${deposit.transactionId}", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                              Text("TrxID: ${deposit.transactionId}",
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic)),
                             if (deposit.status == 'rejected')
-                              Text("Note: ${deposit.rejectionReason}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                              Text("Note: ${deposit.rejectionReason}",
+                                  style: const TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold)),
                           ],
                         ),
                         trailing: deposit.status == 'pending'
@@ -532,21 +767,29 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              icon: const Icon(Icons.edit,
+                                  color: Colors.blue),
                               onPressed: () {
                                 Navigator.pop(context);
-                                _showEditDepositDialog(context, ref, deposit);
+                                _showEditDepositDialog(
+                                    context, ref, deposit);
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              icon: const Icon(Icons.delete,
+                                  color: Colors.red),
                               onPressed: () {
-                                _showDeleteDepositDialog(context, ref, deposit.id);
+                                _showDeleteDepositDialog(
+                                    context, ref, deposit.id);
                               },
                             ),
                           ],
                         )
-                            : Text(deposit.status.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                            : Text(deposit.status.toUpperCase(),
+                            style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12)),
                       ),
                     );
                   },
@@ -560,8 +803,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   // ✅ New: Edit Deposit Dialog
-  void _showEditDepositDialog(BuildContext context, WidgetRef ref, DonationModel deposit) {
-    final amountController = TextEditingController(text: deposit.amount.toString());
+  void _showEditDepositDialog(
+      BuildContext context, WidgetRef ref, DonationModel deposit) {
+    final amountController =
+    TextEditingController(text: deposit.amount.toString());
     final trxIdController = TextEditingController(text: deposit.transactionId);
     final phoneController = TextEditingController(text: deposit.phoneNumber);
     String selectedMethod = deposit.paymentMethod;
@@ -569,89 +814,109 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Edit Deposit Request"),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: amountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Amount (৳)"),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: paymentMethods.contains(selectedMethod) ? selectedMethod : 'Manual (Cash)',
-                      decoration: const InputDecoration(labelText: 'Payment Method'),
-                      items: paymentMethods.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (val) => setState(() => selectedMethod = val!),
-                    ),
-                    if (selectedMethod != 'Manual (Cash)') ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Phone Number'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: trxIdController,
-                        decoration: const InputDecoration(labelText: 'Transaction ID'),
-                      ),
-                    ],
-                  ],
+      builder: (ctx) => StatefulBuilder(builder: (context, setState) {
+        return AlertDialog(
+          title: const Text("Edit Deposit Request"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "Amount (৳)"),
                 ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-                ElevatedButton(
-                  onPressed: () {
-                    final newAmount = double.tryParse(amountController.text) ?? deposit.amount;
-
-                    final updatedDeposit = DonationModel(
-                      id: deposit.id,
-                      communityId: deposit.communityId,
-                      senderId: deposit.senderId,
-                      senderName: deposit.senderName,
-                      amount: newAmount,
-                      type: deposit.type,
-                      timestamp: deposit.timestamp,
-                      status: 'pending',
-                      rejectionReason: null, // Clear rejection reason if editing
-                      paymentMethod: selectedMethod,
-                      transactionId: selectedMethod != 'Manual (Cash)' ? trxIdController.text.trim() : null,
-                      phoneNumber: selectedMethod != 'Manual (Cash)' ? phoneController.text.trim() : null,
-                    );
-
-                    ref.read(donationControllerProvider.notifier).updateDonation(updatedDeposit, ctx);
-                  },
-                  child: const Text("Update"),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: paymentMethods.contains(selectedMethod)
+                      ? selectedMethod
+                      : 'Manual (Cash)',
+                  decoration:
+                  const InputDecoration(labelText: 'Payment Method'),
+                  items: paymentMethods
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (val) => setState(() => selectedMethod = val!),
                 ),
+                if (selectedMethod != 'Manual (Cash)') ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration:
+                    const InputDecoration(labelText: 'Phone Number'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: trxIdController,
+                    decoration:
+                    const InputDecoration(labelText: 'Transaction ID'),
+                  ),
+                ],
               ],
-            );
-          }
-      ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () {
+                final newAmount =
+                    double.tryParse(amountController.text) ?? deposit.amount;
+
+                final updatedDeposit = DonationModel(
+                  id: deposit.id,
+                  communityId: deposit.communityId,
+                  senderId: deposit.senderId,
+                  senderName: deposit.senderName,
+                  amount: newAmount,
+                  type: deposit.type,
+                  timestamp: deposit.timestamp,
+                  status: 'pending',
+                  rejectionReason: null, // Clear rejection reason if editing
+                  paymentMethod: selectedMethod,
+                  transactionId: selectedMethod != 'Manual (Cash)'
+                      ? trxIdController.text.trim()
+                      : null,
+                  phoneNumber: selectedMethod != 'Manual (Cash)'
+                      ? phoneController.text.trim()
+                      : null,
+                );
+
+                ref
+                    .read(donationControllerProvider.notifier)
+                    .updateDonation(updatedDeposit, ctx);
+              },
+              child: const Text("Update"),
+            ),
+          ],
+        );
+      }),
     );
   }
 
   // ✅ New: Delete Deposit Dialog
-  void _showDeleteDepositDialog(BuildContext context, WidgetRef ref, String depositId) {
+  void _showDeleteDepositDialog(
+      BuildContext context, WidgetRef ref, String depositId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Request"),
-        content: const Text("Are you sure you want to delete this deposit request?"),
+        content:
+        const Text("Are you sure you want to delete this deposit request?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context); // Close details sheet if open
-              ref.read(donationControllerProvider.notifier).deleteDonation(depositId, context);
+              ref
+                  .read(donationControllerProvider.notifier)
+                  .deleteDonation(depositId, context);
             },
             child: const Text("Delete"),
           ),
@@ -660,7 +925,8 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildExpenseImpactCard(BuildContext context, UserStats stats, String communityId) {
+  Widget _buildExpenseImpactCard(
+      BuildContext context, UserStats stats, String communityId) {
     if (stats.totalExpenseShare == 0) return const SizedBox();
 
     return Container(
@@ -668,34 +934,56 @@ class CommunityDashboardScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.red.shade100),
-        boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.red.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.volunteer_activism, color: Colors.redAccent, size: 28),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.volunteer_activism,
+                      color: Colors.redAccent, size: 20)),
               const SizedBox(width: 10),
-              const Text("My Expense Contribution", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const Text("My Expense Contribution",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 15),
 
           Text("৳ ${stats.totalExpenseShare.toStringAsFixed(0)}",
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
-          const Text("Used for community activities", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87)),
+          const Text("Used for community activities",
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
 
           const SizedBox(height: 15),
           const Divider(),
           const SizedBox(height: 5),
-          const Text("Recent Contributions:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text("Recent Contributions:",
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey)),
           const SizedBox(height: 5),
 
           ...stats.myImpactActivities.take(3).map((activity) {
-            final myShare = activity.expenseShares[FirebaseAuth.instance.currentUser?.uid] ?? 0;
+            final myShare = activity
+                .expenseShares[FirebaseAuth.instance.currentUser?.uid] ??
+                0;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: Row(
@@ -705,13 +993,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(activity.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(activity.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
                         Text(DateFormat('dd MMM yyyy').format(activity.date),
-                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.grey)),
                       ],
                     ),
                   ),
-                  Text("- ৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                  Text("- ৳ ${myShare.toStringAsFixed(0)}",
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.redAccent)),
                 ],
               ),
             );
@@ -720,7 +1012,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (stats.myImpactActivities.length > 3)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: Center(child: Text("+ ${stats.myImpactActivities.length - 3} more", style: const TextStyle(fontSize: 10, color: Colors.grey))),
+              child: Center(
+                  child: Text("+ ${stats.myImpactActivities.length - 3} more",
+                      style:
+                      const TextStyle(fontSize: 10, color: Colors.grey))),
             ),
 
           const SizedBox(height: 10),
@@ -730,8 +1025,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
               onPressed: () {
                 context.push('/activity-history', extra: communityId);
               },
-              icon: const Icon(Icons.list_alt, size: 16, color: Colors.redAccent),
-              label: const Text("View All Activities", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+              icon:
+              const Icon(Icons.list_alt, size: 16, color: Colors.redAccent),
+              label: const Text("View All Activities",
+                  style: TextStyle(color: Colors.redAccent, fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Colors.redAccent),
               ),
@@ -742,47 +1039,69 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActiveLendingCard(BuildContext context, UserStats stats, List<LoanModel> allLoans, String? myUid) {
-    final myRepaidLending = allLoans.where((l) =>
-    l.status == 'repaid' && l.lenderShares.containsKey(myUid)
-    ).toList();
+  Widget _buildActiveLendingCard(BuildContext context, UserStats stats,
+      List<LoanModel> allLoans, String? myUid) {
+    final myRepaidLending = allLoans
+        .where(
+            (l) => l.status == 'repaid' && l.lenderShares.containsKey(myUid))
+        .toList();
 
-    if (stats.lockedInLoan == 0 && myRepaidLending.isEmpty) return const SizedBox();
+    if (stats.lockedInLoan == 0 && myRepaidLending.isEmpty) {
+      return const SizedBox();
+    }
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.teal.shade200),
-        boxShadow: [BoxShadow(color: Colors.teal.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.teal.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.handshake, color: Colors.teal, size: 28),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.teal.withOpacity(0.1),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.handshake, color: Colors.teal, size: 20)),
               const SizedBox(width: 10),
-              const Text("Money Locked in Loans", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const Text("Money Locked in Loans",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 15),
           Text("৳ ${stats.lockedInLoan.toStringAsFixed(0)}",
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
-          const Text("Currently lent to members", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87)),
+          const Text("Currently lent to members",
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
 
           const SizedBox(height: 15),
           const Divider(),
           const SizedBox(height: 5),
-          const Text("Active Borrowers:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text("Active Borrowers:",
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 5),
 
           if (stats.myFundedLoans.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text("No active loans funded by you.", style: TextStyle(color: Colors.grey)),
+              child: Text("No active loans funded by you.",
+                  style: TextStyle(color: Colors.grey)),
             )
           else
             ...stats.myFundedLoans.take(3).map((loan) {
@@ -795,11 +1114,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(loan.borrowerName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text("৳ ${myShare.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                        Text(loan.borrowerName,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text("৳ ${myShare.toStringAsFixed(0)}",
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, color: Colors.teal)),
                       ],
                     ),
-                    LoanCountdownTimer(targetDate: loan.repaymentDate, fontSize: 11, color: Colors.orange),
+                    LoanCountdownTimer(
+                        targetDate: loan.repaymentDate,
+                        fontSize: 11,
+                        color: Colors.orange),
                   ],
                 ),
               );
@@ -808,7 +1133,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
           if (stats.myFundedLoans.length > 3)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: Center(child: Text("+ ${stats.myFundedLoans.length - 3} more", style: const TextStyle(fontSize: 10, color: Colors.grey))),
+              child: Center(
+                  child: Text("+ ${stats.myFundedLoans.length - 3} more",
+                      style:
+                      const TextStyle(fontSize: 10, color: Colors.grey))),
             ),
 
           const SizedBox(height: 10),
@@ -817,10 +1145,17 @@ class CommunityDashboardScreen extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
-                  _showLoanDetails(context, "Previous Lending History", myRepaidLending, null, isMyLoan: false, isAdminAction: false);
+                  _showLoanDetails(
+                      context,
+                      "Previous Lending History",
+                      myRepaidLending,
+                      null,
+                      isMyLoan: false,
+                      isAdminAction: false);
                 },
                 icon: const Icon(Icons.history, size: 16, color: Colors.teal),
-                label: const Text("View Previous Lending History", style: TextStyle(color: Colors.teal, fontSize: 12)),
+                label: const Text("View Lending History",
+                    style: TextStyle(color: Colors.teal, fontSize: 12)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.teal),
                 ),
@@ -831,32 +1166,36 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-
   Widget _buildProfitLossCard(UserStats stats) {
-    // We now use the explicit stats calculated in the provider
-    bool isProfit = stats.totalInvestmentProfit >= stats.totalInvestmentLoss;
-    double netInvestmentPL = stats.totalInvestmentProfit - stats.totalInvestmentLoss;
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
         border: Border.all(color: Colors.indigo.withOpacity(0.1)),
       ),
       child: Column(
         children: [
-          // Row 1: Withdrawals (NEW)
+          // Row 1: Withdrawals
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("My Total Deposit", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const Text("Lifetime Deposit",
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
                     const SizedBox(height: 5),
-                    Text("৳ ${stats.totalLifetimeContributed.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                        "৳ ${stats.totalLifetimeContributed.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -866,15 +1205,20 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Total Withdrawn", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    const Text("Total Withdrawn",
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Icon(Icons.outbound, color: Colors.orange, size: 16),
+                        const Icon(Icons.outbound_rounded,
+                            color: Colors.orange, size: 18),
                         const SizedBox(width: 4),
                         Text(
                           "৳ ${stats.totalWithdrawn.toStringAsFixed(0)}",
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+                          style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange),
                         ),
                       ],
                     ),
@@ -890,7 +1234,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
           // Row 2: Investment Performance (Profit/Loss)
           const Align(
             alignment: Alignment.centerLeft,
-            child: Text("Investment Performance", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+            child: Text("Investment Performance",
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.grey)),
           ),
           const SizedBox(height: 10),
           Row(
@@ -899,10 +1247,14 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Total Profit Share", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const Text("Total Profit Share",
+                        style: TextStyle(color: Colors.grey, fontSize: 11)),
                     Text(
                       "+ ৳ ${stats.totalInvestmentProfit.toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green),
                     ),
                   ],
                 ),
@@ -911,10 +1263,14 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text("Investment Loss", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const Text("Investment Loss",
+                        style: TextStyle(color: Colors.grey, fontSize: 11)),
                     Text(
                       "- ৳ ${stats.totalInvestmentLoss.toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red),
                     ),
                   ],
                 ),
@@ -926,25 +1282,36 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-
-  Widget _buildInvestmentCard(BuildContext context, UserStats stats, CommunityModel community) {
+  Widget _buildInvestmentCard(
+      BuildContext context, UserStats stats, CommunityModel community) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.orange.shade200),
-        boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.orange.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.trending_up, color: Colors.orange, size: 28),
+              Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      shape: BoxShape.circle),
+                  child: const Icon(Icons.trending_up, color: Colors.orange, size: 20)),
               const SizedBox(width: 10),
-              const Text("Active Investments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text("Active Investments",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 15),
@@ -954,19 +1321,28 @@ class CommunityDashboardScreen extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("My Invested Amount", style: TextStyle(color: Colors.grey)),
+                  const Text("My Invested Amount",
+                      style: TextStyle(color: Colors.grey)),
                   const SizedBox(height: 4),
                   Text("৳ ${stats.lockedInInvestment.toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87)),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text("Exp. Profit Share", style: TextStyle(color: Colors.grey)),
+                  const Text("Exp. Profit Share",
+                      style: TextStyle(color: Colors.grey)),
                   const SizedBox(height: 4),
-                  Text("~ ৳ ${stats.activeInvestmentProfitExpectation.toStringAsFixed(0)}",
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                  Text(
+                      "~ ৳ ${stats.activeInvestmentProfitExpectation.toStringAsFixed(0)}",
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green)),
                 ],
               ),
             ],
@@ -974,14 +1350,18 @@ class CommunityDashboardScreen extends ConsumerWidget {
           const SizedBox(height: 10),
           const Divider(),
           InkWell(
-            onTap: () => context.push('/investment-history', extra: community.id),
+            onTap: () =>
+                context.push('/investment-history', extra: community.id),
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 8.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("View Investment Details", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-                  Icon(Icons.arrow_forward, size: 16, color: Colors.orange),
+                  Text("View Investment Details",
+                      style: TextStyle(
+                          color: Colors.orange, fontWeight: FontWeight.bold)),
+                  Icon(Icons.arrow_forward_rounded,
+                      size: 16, color: Colors.orange),
                 ],
               ),
             ),
@@ -991,18 +1371,25 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAdminLoanOverviewCard(BuildContext context, List<LoanModel> allLoans, WidgetRef ref) {
+  Widget _buildAdminLoanOverviewCard(
+      BuildContext context, List<LoanModel> allLoans, WidgetRef ref) {
     return _buildLoanSummaryCard(context, allLoans, ref, isMyLoan: false);
   }
 
-  Widget _buildLoanSummaryCard(BuildContext context, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan}) {
+  Widget _buildLoanSummaryCard(
+      BuildContext context, List<LoanModel> loans, WidgetRef? ref,
+      {required bool isMyLoan}) {
     final pending = loans.where((l) => l.status == 'pending').toList();
     final active = loans.where((l) => l.status == 'approved').toList();
     final repaid = loans.where((l) => l.status == 'repaid').toList();
     final rejected = loans.where((l) => l.status == 'rejected').toList();
     final activeAmount = active.fold(0.0, (sum, item) => sum + item.amount);
 
-    if (isMyLoan && pending.isEmpty && active.isEmpty && repaid.isEmpty && rejected.isEmpty) {
+    if (isMyLoan &&
+        pending.isEmpty &&
+        active.isEmpty &&
+        repaid.isEmpty &&
+        rejected.isEmpty) {
       return _buildStatCard(
         icon: Icons.request_quote,
         color: Colors.grey,
@@ -1019,8 +1406,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
         border: Border.all(color: iconColor.withOpacity(0.2)),
       ),
       child: Column(
@@ -1033,46 +1425,98 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: iconColor.withOpacity(0.1),
-                  child: Icon(isMyLoan ? Icons.account_balance_wallet : Icons.admin_panel_settings, color: iconColor, size: 24),
+                  child: Icon(
+                      isMyLoan
+                          ? Icons.account_balance_wallet
+                          : Icons.admin_panel_settings,
+                      color: iconColor,
+                      size: 24),
                 ),
                 const SizedBox(width: 15),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
           if (active.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Active Loans (To be Repaid)" : "All Active Community Loans", active, ref, isMyLoan: isMyLoan, isAdminAction: !isMyLoan),
+              onTap: () => _showLoanDetails(
+                  context,
+                  isMyLoan ? "Active Loans (To be Repaid)" : "All Active Loans",
+                  active,
+                  ref,
+                  isMyLoan: isMyLoan,
+                  isAdminAction: !isMyLoan),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Active Debt", activeAmount, "${active.length} Active", Colors.redAccent),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "Active Debt",
+                    activeAmount,
+                    "${active.length} Active",
+                    Colors.redAccent),
               ),
             ),
-          if (active.isNotEmpty && (pending.isNotEmpty || repaid.isNotEmpty)) const Divider(height: 1),
+          if (active.isNotEmpty && (pending.isNotEmpty || repaid.isNotEmpty))
+            const Divider(height: 1),
           if (pending.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Pending Requests" : "All Pending Requests", pending, ref, isMyLoan: isMyLoan, isAdminAction: !isMyLoan),
+              onTap: () => _showLoanDetails(
+                  context,
+                  isMyLoan ? "Pending Requests" : "All Pending Requests",
+                  pending,
+                  ref,
+                  isMyLoan: isMyLoan,
+                  isAdminAction: !isMyLoan),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Pending Requests", pending.fold(0, (sum, item) => sum + item.amount), "${pending.length} Pending", Colors.orange),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "Pending Requests",
+                    pending.fold(0, (sum, item) => sum + item.amount),
+                    "${pending.length} Pending",
+                    Colors.orange),
               ),
             ),
           if (pending.isNotEmpty && repaid.isNotEmpty) const Divider(height: 1),
           if (repaid.isNotEmpty)
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Repaid History" : "All Repaid Loans", repaid, ref, isMyLoan: isMyLoan, isAdminAction: false),
+              onTap: () => _showLoanDetails(
+                  context,
+                  isMyLoan ? "Repaid History" : "All Repaid Loans",
+                  repaid,
+                  ref,
+                  isMyLoan: isMyLoan,
+                  isAdminAction: false),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Repaid Loans", repaid.fold(0, (sum, item) => sum + item.amount), "${repaid.length} Repaid", Colors.green),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "Repaid Loans",
+                    repaid.fold(0, (sum, item) => sum + item.amount),
+                    "${repaid.length} Repaid",
+                    Colors.green),
               ),
             ),
           if (rejected.isNotEmpty) ...[
             const Divider(height: 1),
             InkWell(
-              onTap: () => _showLoanDetails(context, isMyLoan ? "Rejected Requests" : "Rejected History", rejected, ref, isMyLoan: isMyLoan, isAdminAction: false),
+              onTap: () => _showLoanDetails(
+                  context,
+                  isMyLoan ? "Rejected Requests" : "Rejected History",
+                  rejected,
+                  ref,
+                  isMyLoan: isMyLoan,
+                  isAdminAction: false),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Rejected", rejected.fold(0, (sum, item) => sum + item.amount), "${rejected.length} Rejected", Colors.red),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "Rejected",
+                    rejected.fold(0, (sum, item) => sum + item.amount),
+                    "${rejected.length} Rejected",
+                    Colors.red),
               ),
             ),
           ],
@@ -1082,17 +1526,22 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  void _showLoanDetails(BuildContext context, String title, List<LoanModel> loans, WidgetRef? ref, {required bool isMyLoan, required bool isAdminAction}) {
+  void _showLoanDetails(BuildContext context, String title,
+      List<LoanModel> loans, WidgetRef? ref,
+      {required bool isMyLoan, required bool isAdminAction}) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               const Divider(),
               Expanded(
@@ -1111,15 +1560,21 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.check_circle, color: Colors.green, size: 30),
+                              icon: const Icon(Icons.check_circle,
+                                  color: Colors.green, size: 30),
                               tooltip: "Approve Loan",
                               onPressed: () {
                                 Navigator.pop(context); // Close sheet
-                                ref.read(loanControllerProvider.notifier).approveLoan(loan: loan, context: context);
+                                ref
+                                    .read(
+                                    loanControllerProvider.notifier)
+                                    .approveLoan(
+                                    loan: loan, context: context);
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.cancel, color: Colors.red, size: 30),
+                              icon: const Icon(Icons.cancel,
+                                  color: Colors.red, size: 30),
                               tooltip: "Reject Loan",
                               onPressed: () {
                                 Navigator.pop(context); // Close sheet
@@ -1128,10 +1583,12 @@ class CommunityDashboardScreen extends ConsumerWidget {
                             ),
                           ],
                         );
-                      } else if (isAdminAction && loan.status == 'approved') {
+                      } else if (isAdminAction &&
+                          loan.status == 'approved') {
                         // ✅ Admin Action: Repay (Mark as Paid)
                         trailingWidget = IconButton(
-                          icon: const Icon(Icons.monetization_on, color: Colors.blue, size: 30),
+                          icon: const Icon(Icons.monetization_on,
+                              color: Colors.blue, size: 30),
                           tooltip: "Mark as Repaid",
                           onPressed: () {
                             _showRepayDialog(context, ref, loan);
@@ -1143,16 +1600,20 @@ class CommunityDashboardScreen extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              icon: const Icon(Icons.edit,
+                                  color: Colors.blue),
                               onPressed: () {
                                 Navigator.pop(context);
                                 _showEditDialog(context, ref, loan);
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              icon: const Icon(Icons.delete,
+                                  color: Colors.red),
                               onPressed: () {
-                                ref.read(loanControllerProvider.notifier).deleteLoan(loan.id, context);
+                                ref
+                                    .read(loanControllerProvider.notifier)
+                                    .deleteLoan(loan.id, context);
                                 Navigator.pop(context);
                               },
                             ),
@@ -1167,22 +1628,36 @@ class CommunityDashboardScreen extends ConsumerWidget {
                       penaltyWarning = Container(
                         margin: const EdgeInsets.only(top: 8),
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("⚠️ Late Repayment Rules:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
+                            const Text("⚠️ Late Repayment Rules:",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.red)),
                             const SizedBox(height: 4),
-                            const Text("▶ deadline par hole prothom 5 diner moddhe rapy korle:\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।", style: TextStyle(fontSize: 11)),
+                            const Text(
+                                "▶ deadline par hole prothom 5 diner moddhe rapy korle:\nমূল টাকার সাথে ৫% জরিমানা যুক্ত হবে।",
+                                style: TextStyle(fontSize: 11)),
                             const SizedBox(height: 4),
-                            const Text("▶ prothom 5 din par hole porer 5 diner jonne:\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।", style: TextStyle(fontSize: 11)),
+                            const Text(
+                                "▶ prothom 5 din par hole porer 5 diner jonne:\nমূল টাকার উপর ১০% জরিমানা সহ পরিশোধ করতে হবে।",
+                                style: TextStyle(fontSize: 11)),
                             const SizedBox(height: 8),
                             // ✅ Countdown for Repayment
                             Row(
                               children: [
-                                const Icon(Icons.timer, size: 14, color: Colors.red),
+                                const Icon(Icons.timer,
+                                    size: 14, color: Colors.red),
                                 const SizedBox(width: 5),
-                                LoanCountdownTimer(targetDate: loan.repaymentDate, color: Colors.red, fontSize: 12),
+                                LoanCountdownTimer(
+                                    targetDate: loan.repaymentDate,
+                                    color: Colors.red,
+                                    fontSize: 12),
                               ],
                             ),
                           ],
@@ -1199,32 +1674,51 @@ class CommunityDashboardScreen extends ConsumerWidget {
                             ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: CircleAvatar(
-                                backgroundColor: _getLoanColor(loan.status).withOpacity(0.2),
-                                child: Icon(Icons.request_quote, color: _getLoanColor(loan.status)),
+                                backgroundColor:
+                                _getLoanColor(loan.status)
+                                    .withOpacity(0.2),
+                                child: Icon(Icons.request_quote,
+                                    color: _getLoanColor(loan.status)),
                               ),
-                              title: Text('৳${loan.amount} - ${loan.status.toUpperCase()}'),
+                              title: Text(
+                                  '৳${loan.amount} - ${loan.status.toUpperCase()}'),
                               subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
                                 children: [
-                                  Text('${loan.borrowerName}\nReason: ${loan.reason}'),
+                                  Text(
+                                      '${loan.borrowerName}\nReason: ${loan.reason}'),
                                   const SizedBox(height: 4),
                                   // ✅ Requested Date (Always show)
-                                  Text('Requested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(
+                                      'Requested: ${DateFormat('dd MMM yyyy').format(loan.requestDate)}',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey)),
 
                                   // ✅ Date Logic based on status
                                   if (loan.status == 'repaid')
-                                    Text('Repayment Date: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
-                                        style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))
+                                    Text(
+                                        'Repayment Date: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
+                                        style: const TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12))
                                   else
-                                    Text('Deadline: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
-                                        style: const TextStyle(fontSize: 12)),
+                                    Text(
+                                        'Deadline: ${DateFormat('dd MMM yyyy').format(loan.repaymentDate)}',
+                                        style: const TextStyle(
+                                            fontSize: 12)),
 
                                   if (loan.status == 'rejected')
                                     Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
+                                      padding: const EdgeInsets.only(
+                                          top: 4.0),
                                       child: Text(
                                         "Note: ${loan.reason}",
-                                        style: const TextStyle(color: Colors.red, fontStyle: FontStyle.italic),
+                                        style: const TextStyle(
+                                            color: Colors.red,
+                                            fontStyle: FontStyle.italic),
                                       ),
                                     ),
                                 ],
@@ -1253,15 +1747,20 @@ class CommunityDashboardScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Confirm Repayment"),
-        content: Text("Mark loan of ৳${loan.amount} from ${loan.borrowerName} as repaid?"),
+        content: Text(
+            "Mark loan of ৳${loan.amount} from ${loan.borrowerName} as repaid?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context); // Close details sheet
-              ref.read(loanControllerProvider.notifier).repayLoan(loan: loan, context: context);
+              ref
+                  .read(loanControllerProvider.notifier)
+                  .repayLoan(loan: loan, context: context);
             },
             child: const Text("Confirm Repay"),
           ),
@@ -1271,88 +1770,94 @@ class CommunityDashboardScreen extends ConsumerWidget {
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref, LoanModel loan) {
-    final amountController = TextEditingController(text: loan.amount.toString());
+    final amountController =
+    TextEditingController(text: loan.amount.toString());
     final reasonController = TextEditingController(text: loan.reason);
     DateTime selectedDate = loan.repaymentDate;
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Edit Loan Request"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: "Amount (৳)"),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: reasonController,
-                    decoration: const InputDecoration(labelText: "Reason"),
-                  ),
-                  const SizedBox(height: 20),
-                  // ✅ Date Picker
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        setState(() => selectedDate = picked);
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: "Repayment Deadline",
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(DateFormat('dd MMM yyyy').format(selectedDate)),
-                          const Icon(Icons.calendar_today, size: 20, color: Colors.teal),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      builder: (ctx) => StatefulBuilder(builder: (context, setState) {
+        return AlertDialog(
+          title: const Text("Edit Loan Request"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Amount (৳)"),
               ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-                ElevatedButton(
-                  onPressed: () {
-                    final newAmount = double.tryParse(amountController.text) ?? loan.amount;
-                    final newReason = reasonController.text.trim();
-
-                    final updatedLoan = LoanModel(
-                      id: loan.id,
-                      communityId: loan.communityId,
-                      borrowerId: loan.borrowerId,
-                      borrowerName: loan.borrowerName,
-                      amount: newAmount,
-                      reason: newReason,
-                      requestDate: loan.requestDate,
-                      repaymentDate: selectedDate, // ✅ Updated Date
-                      status: loan.status,
-                      lenderShares: loan.lenderShares,
-                    );
-
-                    ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
-                  },
-                  child: const Text("Update"),
+              const SizedBox(height: 10),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(labelText: "Reason"),
+              ),
+              const SizedBox(height: 20),
+              // ✅ Date Picker
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) {
+                    setState(() => selectedDate = picked);
+                  }
+                },
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: "Repayment Deadline",
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                      const Icon(Icons.calendar_today,
+                          size: 20, color: Colors.teal),
+                    ],
+                  ),
                 ),
-              ],
-            );
-          }
-      ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () {
+                final newAmount =
+                    double.tryParse(amountController.text) ?? loan.amount;
+                final newReason = reasonController.text.trim();
+
+                final updatedLoan = LoanModel(
+                  id: loan.id,
+                  communityId: loan.communityId,
+                  borrowerId: loan.borrowerId,
+                  borrowerName: loan.borrowerName,
+                  amount: newAmount,
+                  reason: newReason,
+                  requestDate: loan.requestDate,
+                  repaymentDate: selectedDate, // ✅ Updated Date
+                  status: loan.status,
+                  lenderShares: loan.lenderShares,
+                );
+
+                ref
+                    .read(loanControllerProvider.notifier)
+                    .updateLoan(updatedLoan, ctx);
+              },
+              child: const Text("Update"),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -1378,9 +1883,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () {
               final rejectReason = reasonController.text.trim();
 
@@ -1399,7 +1906,9 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 lenderShares: loan.lenderShares,
               );
 
-              ref.read(loanControllerProvider.notifier).updateLoan(updatedLoan, ctx);
+              ref
+                  .read(loanControllerProvider.notifier)
+                  .updateLoan(updatedLoan, ctx);
             },
             child: const Text("Reject"),
           ),
@@ -1408,28 +1917,45 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard({required IconData icon, required Color color, required String title, required String value, required String subtitle, VoidCallback? onTap}) {
+  Widget _buildStatCard(
+      {required IconData icon,
+        required Color color,
+        required String title,
+        required String value,
+        required String subtitle,
+        VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4))
+          ],
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Row(
           children: [
-            CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 28)),
+            CircleAvatar(
+                radius: 25,
+                backgroundColor: color.withOpacity(0.1),
+                child: Icon(icon, color: color, size: 28)),
             const SizedBox(width: 20),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text(title,
+                      style: const TextStyle(color: Colors.grey, fontSize: 14)),
                   const SizedBox(height: 5),
-                  Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(value,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 5),
                   Text(subtitle, style: TextStyle(fontSize: 12, color: color)),
                 ],
@@ -1449,8 +1975,13 @@ class CommunityDashboardScreen extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
         border: Border.all(color: Colors.purple.withOpacity(0.2)),
       ),
       child: Column(
@@ -1463,28 +1994,43 @@ class CommunityDashboardScreen extends ConsumerWidget {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: Colors.purple.withOpacity(0.1),
-                  child: const Icon(Icons.pie_chart, color: Colors.purple, size: 24),
+                  child: const Icon(Icons.pie_chart,
+                      color: Colors.purple, size: 24),
                 ),
                 const SizedBox(width: 15),
-                const Text("Donation Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text("Donation Breakdown",
+                    style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
           if (hasMonthly)
             InkWell(
-              onTap: () => _showDonationDetails(context, "Monthly Subscriptions", stats.monthlyList),
+              onTap: () => _showDonationDetails(
+                  context, "Monthly Subscriptions", stats.monthlyList),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("Monthly Subscription", stats.monthlyDonated, "${stats.monthlyPercent.toStringAsFixed(1)}% of total", Colors.black87),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "Monthly Subscription",
+                    stats.monthlyDonated,
+                    "${stats.monthlyPercent.toStringAsFixed(1)}% of total",
+                    Colors.black87),
               ),
             ),
           if (hasMonthly && hasRandom) const Divider(height: 1),
           if (hasRandom)
             InkWell(
-              onTap: () => _showDonationDetails(context, "Random / One-time", stats.randomList),
+              onTap: () => _showDonationDetails(
+                  context, "Random / One-time", stats.randomList),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: _buildBreakdownRow("One-time / Random", stats.randomDonated, "${stats.randomPercent.toStringAsFixed(1)}% of total", Colors.black87),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: _buildBreakdownRow(
+                    "One-time / Random",
+                    stats.randomDonated,
+                    "${stats.randomPercent.toStringAsFixed(1)}% of total",
+                    Colors.black87),
               ),
             ),
           const SizedBox(height: 10),
@@ -1493,13 +2039,15 @@ class CommunityDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBreakdownRow(String label, double amount, String subLabel, Color labelColor) {
+  Widget _buildBreakdownRow(
+      String label, double amount, String subLabel, Color labelColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            Text(label, style: TextStyle(color: labelColor, fontWeight: FontWeight.w500)),
+            Text(label,
+                style: TextStyle(color: labelColor, fontWeight: FontWeight.w500)),
             const SizedBox(width: 5),
             const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
           ],
@@ -1507,8 +2055,10 @@ class CommunityDashboardScreen extends ConsumerWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text("৳ ${amount.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(subLabel, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text("৳ ${amount.toStringAsFixed(0)}",
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(subLabel,
+                style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
       ],
@@ -1520,9 +2070,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
+        boxShadow: [
+          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1530,15 +2082,21 @@ class CommunityDashboardScreen extends ConsumerWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Community Invite Code', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const Text('Community Invite Code',
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
               const SizedBox(height: 4),
-              Text(code, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2.0)),
+              Text(code,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2.0)),
             ],
           ),
           IconButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: code)).then((_) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied! ✅')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('Copied! ✅')));
               });
             },
             icon: const Icon(Icons.copy, color: Colors.teal),
@@ -1554,32 +2112,37 @@ class CommunityDashboardScreen extends ConsumerWidget {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.teal.shade50,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)],
             ),
-            child: Icon(icon, color: Colors.teal, size: 28),
+            child: Icon(icon, color: Colors.teal, size: 24),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(label,
+              style:
+              const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
         ],
       ),
     );
   }
 
-  void _showDonationDetails(BuildContext context, String title, List<DonationModel> donations) {
+  void _showDonationDetails(
+      BuildContext context, String title, List<DonationModel> donations) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               const Divider(),
               Expanded(
@@ -1590,9 +2153,11 @@ class CommunityDashboardScreen extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final donation = donations[index];
                     return ListTile(
-                      leading: const Icon(Icons.check_circle, color: Colors.green),
+                      leading: const Icon(Icons.check_circle,
+                          color: Colors.green),
                       title: Text('Amount: ৳${donation.amount}'),
-                      subtitle: Text(DateFormat('dd MMM yyyy, hh:mm a').format(donation.timestamp)),
+                      subtitle: Text(DateFormat('dd MMM yyyy, hh:mm a')
+                          .format(donation.timestamp)),
                     );
                   },
                 ),
@@ -1606,11 +2171,16 @@ class CommunityDashboardScreen extends ConsumerWidget {
 
   Color _getLoanColor(String status) {
     switch (status) {
-      case 'approved': return Colors.redAccent;
-      case 'pending': return Colors.orange;
-      case 'repaid': return Colors.green;
-      case 'rejected': return Colors.red;
-      default: return Colors.grey;
+      case 'approved':
+        return Colors.redAccent;
+      case 'pending':
+        return Colors.orange;
+      case 'repaid':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 }
@@ -1672,7 +2242,8 @@ class _DueWarningCardState extends State<DueWarningCard> {
       if (mounted) {
         setState(() {
           _isOverdue = true;
-          _timeDisplayString = "00 Year 00 Month 00 Days 00 Hours 00 Min 00 Sec";
+          _timeDisplayString =
+          "00 Year 00 Month 00 Days 00 Hours 00 Min 00 Sec";
         });
       }
     } else {
@@ -1694,16 +2265,29 @@ class _DueWarningCardState extends State<DueWarningCard> {
     int minutes = target.minute - now.minute;
     int seconds = target.second - now.second;
 
-    if (seconds < 0) { seconds += 60; minutes--; }
-    if (minutes < 0) { minutes += 60; hours--; }
-    if (hours < 0) { hours += 24; days--; }
+    if (seconds < 0) {
+      seconds += 60;
+      minutes--;
+    }
+    if (minutes < 0) {
+      minutes += 60;
+      hours--;
+    }
+    if (hours < 0) {
+      hours += 24;
+      days--;
+    }
     if (days < 0) {
       final prevMonth = DateTime(target.year, target.month - 1);
-      final daysInPrevMonth = DateTime(prevMonth.year, prevMonth.month + 1, 0).day;
+      final daysInPrevMonth =
+          DateTime(prevMonth.year, prevMonth.month + 1, 0).day;
       days += daysInPrevMonth;
       months--;
     }
-    if (months < 0) { months += 12; years--; }
+    if (months < 0) {
+      months += 12;
+      years--;
+    }
 
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     return "$years Year $months Month $days Days ${twoDigits(hours)} Hours ${twoDigits(minutes)} Min ${twoDigits(seconds)} Sec";
@@ -1718,22 +2302,30 @@ class _DueWarningCardState extends State<DueWarningCard> {
   @override
   Widget build(BuildContext context) {
     final bool isPaid = widget.stats.isCurrentMonthPaid;
-    final Color bgColor = isPaid ? Colors.green.shade50 : (_isOverdue ? Colors.red.shade50 : Colors.orange.shade50);
-    final Color borderColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
-    final Color textColor = isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
+    final Color bgColor = isPaid
+        ? Colors.green.shade50
+        : (_isOverdue ? Colors.red.shade50 : Colors.orange.shade50);
+    final Color borderColor =
+    isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
+    final Color textColor =
+    isPaid ? Colors.green : (_isOverdue ? Colors.red : Colors.orange);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: borderColor),
       ),
       child: Column(
         children: [
           Icon(
-            isPaid ? Icons.check_circle : (_isOverdue ? Icons.warning_amber_rounded : Icons.access_time_filled),
+            isPaid
+                ? Icons.check_circle
+                : (_isOverdue
+                ? Icons.warning_amber_rounded
+                : Icons.access_time_filled),
             color: textColor,
             size: 40,
           ),
@@ -1742,14 +2334,18 @@ class _DueWarningCardState extends State<DueWarningCard> {
             isPaid
                 ? "Current Month Payment Complete! 🎉"
                 : (_isOverdue ? "Payment Overdue!" : "Monthly Payment Due"),
-            style: TextStyle(fontWeight: FontWeight.bold, color: textColor, fontSize: 18),
+            style: TextStyle(
+                fontWeight: FontWeight.bold, color: textColor, fontSize: 18),
           ),
           const SizedBox(height: 5),
           if (!isPaid && !_isOverdue)
-            const Text("Target: 15th of this month", style: TextStyle(color: Colors.grey)),
+            const Text("Target: 15th of this month",
+                style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           if (!isPaid && _isOverdue)
-            const Text("Please Pay ASAP with Penalty", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+            const Text("Please Pay ASAP with Penalty",
+                style:
+                TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1772,7 +2368,8 @@ class _DueWarningCardState extends State<DueWarningCard> {
           if (isPaid)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: Text("Next cycle starts in:", style: TextStyle(color: Colors.green.shade800)),
+              child: Text("Next cycle starts in:",
+                  style: TextStyle(color: Colors.green.shade800)),
             ),
           if (!isPaid) ...[
             const SizedBox(height: 15),
@@ -1788,10 +2385,14 @@ class _DueWarningCardState extends State<DueWarningCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("যদি কোনো সদস্য সময়মতো পেমেন্ট করতে ব্যর্থ হয়:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Text("যদি কোনো সদস্য সময়মতো পেমেন্ট করতে ব্যর্থ হয়:",
+                      style:
+                      TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 8),
-                  _buildRuleRow("১৬–২০ তারিখের মধ্যে:", "মূল টাকার সাথে ৫% জরিমানা।"),
-                  _buildRuleRow("২০ তারিখের পর:", "পরবর্তী মাসের সাথে ১০% জরিমানা সহ।"),
+                  _buildRuleRow(
+                      "১৬–২০ তারিখের মধ্যে:", "মূল টাকার সাথে ৫% জরিমানা।"),
+                  _buildRuleRow("২০ তারিখের পর:",
+                      "পরবর্তী মাসের সাথে ১০% জরিমানা সহ।"),
                 ],
               ),
             ),
@@ -1811,9 +2412,12 @@ class _DueWarningCardState extends State<DueWarningCard> {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(color: Colors.black87, fontSize: 12, height: 1.4),
+                style: const TextStyle(
+                    color: Colors.black87, fontSize: 12, height: 1.4),
                 children: [
-                  TextSpan(text: "$title ", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(
+                      text: "$title ",
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   TextSpan(text: desc),
                 ],
               ),
