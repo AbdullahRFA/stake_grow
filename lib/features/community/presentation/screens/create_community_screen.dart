@@ -12,15 +12,27 @@ class CreateCommunityScreen extends ConsumerStatefulWidget {
 
 class _CreateCommunityScreenState extends ConsumerState<CreateCommunityScreen> {
   final communityNameController = TextEditingController();
+  bool _isButtonEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to changes to enable/disable the button dynamically
+    communityNameController.addListener(() {
+      setState(() {
+        _isButtonEnabled = communityNameController.text.trim().isNotEmpty;
+      });
+    });
+  }
 
   @override
   void dispose() {
-    super.dispose();
     communityNameController.dispose();
+    super.dispose();
   }
 
   void createCommunity() {
-    if (communityNameController.text.trim().isNotEmpty) {
+    if (_isButtonEnabled) {
       ref.read(communityControllerProvider.notifier).createCommunity(
         communityNameController.text.trim(),
         context,
@@ -30,46 +42,107 @@ class _CreateCommunityScreenState extends ConsumerState<CreateCommunityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // কন্ট্রোলারের স্টেট (লোডিং কিনা) চেক করা
     final isLoading = ref.watch(communityControllerProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create a Community'),
+        title: const Text('New Community'),
+        centerTitle: true,
       ),
       body: isLoading
           ? const Loader()
-          : Padding(
-        padding: const EdgeInsets.all(16.0),
+          : SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Align(
-              alignment: Alignment.topLeft,
-              child: Text('Community Name'),
+            const SizedBox(height: 20),
+            // 1. Visual Header
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.diversity_3_rounded, // Represents community/group
+                  size: 64,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 32),
+
+            // 2. Headings
+            Text(
+              'Give your group a name',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This will be the permanent name for your fund or circle.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            // 3. Modern Input Field
             TextField(
               controller: communityNameController,
-              decoration: const InputDecoration(
-                hintText: 'e.g. CSE 24 Batch Fund, Friends Circle',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.all(18),
-              ),
               maxLength: 25,
+              autofocus: true,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                hintText: 'e.g. CSE 24 Batch Fund',
+                prefixIcon: const Icon(Icons.edit_note_rounded),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+              ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
+
+            // 4. Action Button
             SizedBox(
-              width: double.infinity,
+              height: 56,
               child: ElevatedButton(
-                onPressed: createCommunity,
+                onPressed: _isButtonEnabled ? createCommunity : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(15),
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  elevation: _isButtonEnabled ? 4 : 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 child: const Text(
                   'Create Community',
-                  style: TextStyle(fontSize: 17),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
