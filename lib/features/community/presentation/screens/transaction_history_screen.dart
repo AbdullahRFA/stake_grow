@@ -25,25 +25,40 @@ class TransactionHistoryScreen extends ConsumerWidget {
       length: 4,
       initialIndex: initialIndex,
       child: Scaffold(
+        backgroundColor: Colors.grey[50],
         appBar: AppBar(
-          title: const Text('Transparency & History'),
-          bottom: const TabBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          title: const Text(
+            'Transparency & History',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+          iconTheme: const IconThemeData(color: Colors.black87),
+          bottom: TabBar(
             isScrollable: true,
-            tabs: [
-              Tab(text: 'Donations', icon: Icon(Icons.volunteer_activism)),
-              Tab(text: 'Investments', icon: Icon(Icons.trending_up)),
-              Tab(text: 'Expenses', icon: Icon(Icons.money_off)),
-              Tab(text: 'Loans', icon: Icon(Icons.request_quote)),
-            ],
-            labelColor: Colors.teal,
+            padding: const EdgeInsets.only(bottom: 10),
+            indicatorSize: TabBarIndicatorSize.label,
+            indicator: BoxDecoration(
+              borderRadius: BorderRadius.circular(50),
+              color: Colors.teal.shade50,
+              border: Border.all(color: Colors.teal.shade200),
+            ),
+            labelColor: Colors.teal.shade700,
             unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.teal,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            tabs: const [
+              Tab(text: 'Donations', icon: Icon(Icons.volunteer_activism_rounded)),
+              Tab(text: 'Investments', icon: Icon(Icons.trending_up_rounded)),
+              Tab(text: 'Expenses', icon: Icon(Icons.money_off_csred_rounded)),
+              Tab(text: 'Loans', icon: Icon(Icons.request_quote_rounded)),
+            ],
           ),
         ),
         body: TabBarView(
           children: [
             _DonationList(communityId: communityId),
-            _InvestmentList(communityId: communityId), // ✅ Updated Widget
+            _InvestmentList(communityId: communityId),
             _ActivityList(communityId: communityId),
             _LoanList(communityId: communityId),
           ],
@@ -53,7 +68,9 @@ class TransactionHistoryScreen extends ConsumerWidget {
   }
 }
 
-// ... _DonationList (Keep as is) ...
+// -----------------------------------------------------------------------------
+// 1. DONATION LIST
+// -----------------------------------------------------------------------------
 class _DonationList extends ConsumerWidget {
   final String communityId;
   const _DonationList({required this.communityId});
@@ -65,16 +82,39 @@ class _DonationList extends ConsumerWidget {
       loading: () => const Loader(),
       error: (e, s) => Center(child: Text('Error: $e')),
       data: (data) {
-        if (data.isEmpty) return const Center(child: Text('No donations yet.'));
+        if (data.isEmpty) return _buildEmptyState(Icons.volunteer_activism, "No donations yet");
+
         return ListView.builder(
+          padding: const EdgeInsets.all(12),
           itemCount: data.length,
           itemBuilder: (context, index) {
             final donation = data[index];
-            return ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.arrow_downward, color: Colors.white)),
-              title: Text(donation.senderName),
-              subtitle: Text(DateFormat('dd MMM, hh:mm a').format(donation.timestamp)),
-              trailing: Text('+ ৳${donation.amount}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: _cardDecoration(),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.arrow_downward_rounded, color: Colors.green.shade700),
+                ),
+                title: Text(
+                  donation.senderName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                subtitle: Text(
+                  DateFormat('dd MMM, hh:mm a').format(donation.timestamp),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+                trailing: Text(
+                  '+ ৳${donation.amount}',
+                  style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
             );
           },
         );
@@ -83,7 +123,9 @@ class _DonationList extends ConsumerWidget {
   }
 }
 
-// ✅ 2. Updated Investment List with Admin Action
+// -----------------------------------------------------------------------------
+// 2. INVESTMENT LIST (Updated with Modern UI & Logic)
+// -----------------------------------------------------------------------------
 class _InvestmentList extends ConsumerWidget {
   final String communityId;
   const _InvestmentList({required this.communityId});
@@ -91,7 +133,7 @@ class _InvestmentList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final investmentsAsync = ref.watch(communityInvestmentsProvider(communityId));
-    final communityAsync = ref.watch(communityDetailsProvider(communityId)); // ✅ Check Admin
+    final communityAsync = ref.watch(communityDetailsProvider(communityId));
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return investmentsAsync.when(
@@ -100,75 +142,100 @@ class _InvestmentList extends ConsumerWidget {
       data: (investments) {
         return communityAsync.when(
           loading: () => const Loader(),
-          error: (e, s) => Center(child: Text('Error loading community info')),
+          error: (e, s) => const SizedBox(),
           data: (community) {
             final isAdmin = currentUser != null && currentUser.uid == community.adminId;
 
-            if (investments.isEmpty) return const Center(child: Text('No investments yet.'));
+            if (investments.isEmpty) return _buildEmptyState(Icons.show_chart, "No investments found");
 
             return ListView.builder(
+              padding: const EdgeInsets.all(12),
               itemCount: investments.length,
               itemBuilder: (context, index) {
                 final invest = investments[index];
                 final isActive = invest.status == 'active';
+                final isProfit = invest.actualProfitLoss != null && invest.actualProfitLoss! >= 0;
 
-                // ROI Calculation
-                double roi = invest.investedAmount == 0
-                    ? 0
-                    : (invest.expectedProfit / invest.investedAmount) * 100;
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isActive
-                          ? Colors.orange
-                          : (invest.actualProfitLoss! >= 0 ? Colors.green : Colors.red),
-                      child: Icon(
-                        isActive
-                            ? Icons.trending_up
-                            : (invest.actualProfitLoss! >= 0 ? Icons.check : Icons.arrow_downward),
-                        color: Colors.white,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: _cardDecoration(),
+                  child: Column(
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isActive ? Colors.orange.shade50 : (isProfit ? Colors.green.shade50 : Colors.red.shade50),
+                          borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              invest.projectName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            _buildStatusBadge(
+                              isActive ? "RUNNING" : "CLOSED",
+                              isActive ? Colors.orange : (isProfit ? Colors.green : Colors.red),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    title: Text(invest.projectName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Invested: ৳${invest.investedAmount}"),
-                        if (isActive)
-                          Text("Expected Profit: ৳${invest.expectedProfit} (${roi.toStringAsFixed(1)}%)")
-                        else
-                          Text(
-                            "Returned: ৳${invest.returnAmount} \n${invest.actualProfitLoss! >= 0 ? 'Profit' : 'Loss'}: ৳${invest.actualProfitLoss}",
-                            style: TextStyle(
-                              color: invest.actualProfitLoss! >= 0 ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold,
+
+                      // Body
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildStatColumn("Invested", "৳${invest.investedAmount}", Colors.black87),
+                            Container(width: 1, height: 40, color: Colors.grey.shade300),
+                            if (isActive)
+                              _buildStatColumn("Exp. Profit", "৳${invest.expectedProfit}", Colors.orange)
+                            else
+                              _buildStatColumn(
+                                  isProfit ? "Net Profit" : "Net Loss",
+                                  "৳${invest.actualProfitLoss}",
+                                  isProfit ? Colors.green : Colors.red
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // Footer Action (Admin Only)
+                      if (isActive && isAdmin) ...[
+                        const Divider(height: 1),
+                        InkWell(
+                          onTap: () => _showReturnDialog(context, ref, invest),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "Record Return / Close Project",
+                                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                    // ✅ Show Button only if Admin & Active
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          isActive ? '' : 'Closed', // Hide amount if active to save space for button
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                        if (isActive && isAdmin)
-                          IconButton(
-                            icon: const Icon(Icons.input, color: Colors.blue, size: 28),
-                            tooltip: "Record Return",
-                            onPressed: () => _showReturnDialog(context, ref, invest),
-                          )
-                        else if (!isActive)
-                        // If closed, simple checkmark
-                          const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                      ],
-                    ),
+                        )
+                      ] else if (!isActive) ...[
+                        const Divider(height: 1),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Center(
+                            child: Text(
+                              "Returned: ৳${invest.returnAmount}",
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                            ),
+                          ),
+                        )
+                      ]
+                    ],
                   ),
                 );
               },
@@ -185,28 +252,27 @@ class _InvestmentList extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Record Investment Return"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Close Investment"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Project: ${invest.projectName}"),
+            Text("Project: ${invest.projectName}", style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 5),
-            Text("Invested: ৳${invest.investedAmount}", style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 15),
+            Text("Invested Capital: ৳${invest.investedAmount}", style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 20),
             TextField(
               controller: returnController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: "Total Returned Amount",
-                hintText: "Include principal + profit",
-                border: OutlineInputBorder(),
+                helperText: "Principal + Profit (or - Loss)",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 prefixText: "৳ ",
+                filled: true,
+                fillColor: Colors.grey.shade50,
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              "Note: This amount will be added back to the Community Fund.",
-              style: TextStyle(fontSize: 12, color: Colors.redAccent),
             ),
           ],
         ),
@@ -223,11 +289,15 @@ class _InvestmentList extends ConsumerWidget {
                   returnAmount: returnAmount,
                   context: context,
                 );
-                Navigator.pop(ctx); // Close dialog manually here to be safe
+                Navigator.pop(ctx);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-            child: const Text("Confirm & Distribute"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text("Confirm Close"),
           ),
         ],
       ),
@@ -235,7 +305,9 @@ class _InvestmentList extends ConsumerWidget {
   }
 }
 
-// ... _ActivityList (Keep as is) ...
+// -----------------------------------------------------------------------------
+// 3. ACTIVITY / EXPENSE LIST
+// -----------------------------------------------------------------------------
 class _ActivityList extends ConsumerWidget {
   final String communityId;
   const _ActivityList({required this.communityId});
@@ -247,16 +319,32 @@ class _ActivityList extends ConsumerWidget {
       loading: () => const Loader(),
       error: (e, s) => Center(child: Text('Error: $e')),
       data: (data) {
-        if (data.isEmpty) return const Center(child: Text('No expenses yet.'));
+        if (data.isEmpty) return _buildEmptyState(Icons.money_off, "No expenses recorded");
+
         return ListView.builder(
+          padding: const EdgeInsets.all(12),
           itemCount: data.length,
           itemBuilder: (context, index) {
             final activity = data[index];
-            return ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.volunteer_activism, color: Colors.white)),
-              title: Text(activity.title),
-              subtitle: Text(activity.type),
-              trailing: Text('- ৳${activity.cost}', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: _cardDecoration(),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.receipt_long_rounded, color: Colors.red.shade700),
+                ),
+                title: Text(activity.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(activity.type, style: const TextStyle(fontSize: 12)),
+                trailing: Text(
+                  '- ৳${activity.cost}',
+                  style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
             );
           },
         );
@@ -265,7 +353,9 @@ class _ActivityList extends ConsumerWidget {
   }
 }
 
-// ... _LoanList (Keep as is) ...
+// -----------------------------------------------------------------------------
+// 4. LOAN LIST (Redesigned with Action Buttons)
+// -----------------------------------------------------------------------------
 class _LoanList extends ConsumerWidget {
   final String communityId;
   const _LoanList({required this.communityId});
@@ -277,63 +367,185 @@ class _LoanList extends ConsumerWidget {
       loading: () => const Loader(),
       error: (e, s) => Center(child: Text('Error: $e')),
       data: (data) {
-        if (data.isEmpty) return const Center(child: Text('No loan requests.'));
+        if (data.isEmpty) return _buildEmptyState(Icons.handshake, "No loan requests");
+
         return ListView.builder(
+          padding: const EdgeInsets.all(12),
           itemCount: data.length,
           itemBuilder: (context, index) {
             final loan = data[index];
             final isPending = loan.status == 'pending';
             final isApproved = loan.status == 'approved';
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: isPending ? Colors.orange : (isApproved ? Colors.blue : Colors.green),
-                child: Icon(isPending ? Icons.hourglass_empty : (isApproved ? Icons.money : Icons.check_circle), color: Colors.white),
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: _cardDecoration(),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Row: User & Amount
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.teal.shade100,
+                              radius: 18,
+                              child: Text(loan.borrowerName[0].toUpperCase(), style: TextStyle(color: Colors.teal.shade800, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(loan.borrowerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                Text("Reason: ${loan.reason}", style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                              ],
+                            )
+                          ],
+                        ),
+                        Text(
+                          "৳${loan.amount}",
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Status Badge & Actions
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildStatusBadge(
+                            loan.status.toUpperCase(),
+                            isPending ? Colors.orange : (isApproved ? Colors.blue : Colors.green)
+                        ),
+
+                        // Action Buttons
+                        if (isPending)
+                          ElevatedButton.icon(
+                            onPressed: () => _confirmAction(context, ref, loan, "approve"),
+                            icon: const Icon(Icons.check, size: 16),
+                            label: const Text("Approve"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )
+                        else if (isApproved)
+                          ElevatedButton.icon(
+                            onPressed: () => _confirmAction(context, ref, loan, "repay"),
+                            icon: const Icon(Icons.assignment_return, size: 16),
+                            label: const Text("Mark Repaid"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.teal,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )
+                      ],
+                    )
+                  ],
+                ),
               ),
-              title: Text(loan.borrowerName),
-              subtitle: Text("Status: ${loan.status.toUpperCase()}\nReason: ${loan.reason}"),
-              isThreeLine: true,
-              trailing: Text('৳${loan.amount}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              onTap: () {
-                if (isPending) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Approve Loan?'),
-                      content: Text('Approve ৳${loan.amount} for ${loan.borrowerName}?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(loanControllerProvider.notifier).approveLoan(loan: loan, context: context);
-                          },
-                          child: const Text('Approve'),
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (isApproved) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Mark as Repaid?'),
-                      content: Text('Has ${loan.borrowerName} returned ৳${loan.amount}?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(loanControllerProvider.notifier).repayLoan(loan: loan, context: context);
-                          },
-                          child: const Text('Confirm'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              },
             );
           },
         );
       },
     );
   }
+
+  void _confirmAction(BuildContext context, WidgetRef ref, LoanModel loan, String action) {
+    final isApprove = action == "approve";
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(isApprove ? 'Approve Loan Request?' : 'Confirm Repayment?'),
+        content: Text(
+            isApprove
+                ? 'This will deduct ৳${loan.amount} from the Community Fund and give it to ${loan.borrowerName}.'
+                : 'Has ${loan.borrowerName} returned the full amount of ৳${loan.amount} to the fund?'
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              if (isApprove) {
+                ref.read(loanControllerProvider.notifier).approveLoan(loan: loan, context: context);
+              } else {
+                ref.read(loanControllerProvider.notifier).repayLoan(loan: loan, context: context);
+              }
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: isApprove ? Colors.blue : Colors.teal, foregroundColor: Colors.white),
+            child: Text(isApprove ? 'Approve' : 'Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// HELPER WIDGETS (Styling)
+// -----------------------------------------------------------------------------
+
+Widget _buildEmptyState(IconData icon, String message) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 60, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        Text(message, style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+      ],
+    ),
+  );
+}
+
+BoxDecoration _cardDecoration() {
+  return BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.grey.withOpacity(0.1),
+        spreadRadius: 1,
+        blurRadius: 8,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  );
+}
+
+Widget _buildStatusBadge(String text, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+    ),
+  );
+}
+
+Widget _buildStatColumn(String label, String value, Color valueColor) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      const SizedBox(height: 4),
+      Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: valueColor)),
+    ],
+  );
 }
