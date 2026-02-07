@@ -24,46 +24,50 @@ class SignUpScreen extends HookConsumerWidget {
           context: context,
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
-          name: 'Member', // Default placeholder as requested
+          name: 'Member',
         );
       }
     }
 
     // 3. UI Construction
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Consistent light background
+      backgroundColor: const Color(0xFFF5F7F9), // Modern neutral background
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      extendBodyBehindAppBar: true, // Allows background shapes to go behind AppBar
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           // --- Background Design Elements ---
           Positioned(
             top: -50,
-            right: -50,
+            left: -50,
             child: Container(
-              width: 200,
-              height: 200,
+              width: 250,
+              height: 250,
               decoration: BoxDecoration(
-                color: Colors.teal.withOpacity(0.15),
+                gradient: RadialGradient(
+                  colors: [Colors.teal.withOpacity(0.15), Colors.transparent],
+                ),
                 shape: BoxShape.circle,
               ),
             ),
           ),
           Positioned(
-            bottom: 100,
-            left: -60,
+            bottom: -80,
+            right: -80,
             child: Container(
-              width: 150,
-              height: 150,
+              width: 200,
+              height: 200,
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                gradient: RadialGradient(
+                  colors: [Colors.blue.withOpacity(0.1), Colors.transparent],
+                ),
                 shape: BoxShape.circle,
               ),
             ),
@@ -72,25 +76,25 @@ class SignUpScreen extends HookConsumerWidget {
           // --- Main Content ---
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Icon Header
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.teal.withOpacity(0.2),
-                          blurRadius: 20,
-                          offset: const Offset(0, 5),
+                          color: Colors.teal.withOpacity(0.15),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.person_add_alt_1, size: 50, color: Colors.teal),
+                    child: const Icon(Icons.person_add_rounded, size: 50, color: Colors.teal),
                   ),
                   const SizedBox(height: 24),
 
@@ -98,31 +102,35 @@ class SignUpScreen extends HookConsumerWidget {
                   Text(
                     'Create Account',
                     style: GoogleFonts.poppins(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF2D3142),
+                        letterSpacing: -0.5
                     ),
                   ),
+                  const SizedBox(height: 8),
                   Text(
-                    'Join our community today',
+                    'Start your community growth journey today',
+                    textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey[600]
+                        fontSize: 15,
+                        color: Colors.blueGrey[400],
+                        fontWeight: FontWeight.w500
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
 
                   // Form Card
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 30,
-                          offset: const Offset(0, 10),
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
                         ),
                       ],
                     ),
@@ -130,47 +138,62 @@ class SignUpScreen extends HookConsumerWidget {
                       key: formKey,
                       child: Column(
                         children: [
-                          // Email Field
+                          // Email Field (High Visibility)
+                          _buildLabel("EMAIL ADDRESS"),
+                          const SizedBox(height: 8),
                           TextFormField(
                             controller: emailController,
-                            style: GoogleFonts.poppins(),
-                            decoration: _inputDecoration('Email Address', Icons.email_outlined),
-                            validator: (val) => val!.isEmpty ? 'Please enter your email' : null,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            decoration: _inputDecoration('Enter your email', Icons.alternate_email_rounded),
+                            validator: (val) => val!.isEmpty ? 'Email is required' : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
 
-                          // Password Field
+                          // Password Field (High Visibility)
+                          _buildLabel("PASSWORD"),
+                          const SizedBox(height: 8),
                           TextFormField(
                             controller: passwordController,
                             obscureText: true,
-                            style: GoogleFonts.poppins(),
-                            decoration: _inputDecoration('Password', Icons.lock_outline),
-                            validator: (val) => val!.length < 6 ? 'Password must be 6+ chars' : null,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            decoration: _inputDecoration('Min. 6 characters', Icons.lock_open_rounded),
+                            validator: (val) => val!.length < 6 ? 'Password too short' : null,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 32),
 
                           // Sign Up Button
                           isLoading
-                              ? const CircularProgressIndicator()
-                              : SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: ElevatedButton(
-                              onPressed: signUp,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal,
-                                foregroundColor: Colors.white,
-                                elevation: 5,
-                                shadowColor: Colors.teal.withOpacity(0.4),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                              ? const CircularProgressIndicator(color: Colors.teal)
+                              : Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.teal.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
                                 ),
-                              ),
-                              child: Text(
-                                'Sign Up',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600
+                              ],
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 58,
+                              child: ElevatedButton(
+                                onPressed: signUp,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Sign Up',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5
+                                  ),
                                 ),
                               ),
                             ),
@@ -180,20 +203,21 @@ class SignUpScreen extends HookConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
                   // Back to Login Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text("Already have an account? ", style: GoogleFonts.poppins(color: Colors.grey[600])),
+                      Text("Already a member? ",
+                          style: GoogleFonts.poppins(color: Colors.blueGrey[600], fontWeight: FontWeight.w500)),
                       GestureDetector(
                         onTap: () => context.go('/login'),
                         child: Text(
                           'Log In',
                           style: GoogleFonts.poppins(
                             color: Colors.teal,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
@@ -208,26 +232,49 @@ class SignUpScreen extends HookConsumerWidget {
     );
   }
 
-  // --- Helper for Input Style ---
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  // --- Styling Helpers ---
+
+  Widget _buildLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: Colors.blueGrey.shade700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[600]),
-      prefixIcon: Icon(icon, color: Colors.teal),
+      hintText: hint,
+      hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal),
+      prefixIcon: Icon(icon, color: Colors.teal.shade700, size: 22),
       filled: true,
-      fillColor: Colors.grey[50],
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade200, width: 2),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.teal, width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.teal, width: 2.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
       ),
     );
   }
