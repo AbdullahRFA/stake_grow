@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart'; // Ensure Firebase Auth is imported
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:stake_grow/core/common/loader.dart';
 import 'package:stake_grow/features/auth/data/auth_repository.dart';
 import 'package:stake_grow/features/community/presentation/community_controller.dart';
@@ -12,51 +14,116 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final communitiesAsyncValue = ref.watch(userCommunitiesProvider);
+    final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
 
+    // Dynamic Greeting Logic
+    final String greeting = _getGreeting();
+    final String userName = user?.displayName?.split(' ').first ?? 'User';
+
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF8FAFB),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. Premium Sliver App Bar
+          // 1. Premium Sliver App Bar with Dynamic Greeting
           SliverAppBar(
-            expandedHeight: 140.0,
-            floating: true,
+            expandedHeight: 160.0,
+            floating: false,
             pinned: true,
-            backgroundColor: Colors.teal,
+            elevation: 0,
+            backgroundColor: Colors.teal.shade700,
+            centerTitle: false,
+            titleSpacing: 20,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text('My Communities', style: TextStyle(fontWeight: FontWeight.bold)),
-              centerTitle: false,
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.teal.shade700, Colors.teal.shade400],
-                  ),
+              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+              title: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$greeting, \n',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    TextSpan(
+                      text: userName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.teal.shade800, Colors.teal.shade400],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: CircleAvatar(
+                      radius: 100,
+                      backgroundColor: Colors.white.withOpacity(0.05),
+                    ),
+                  ),
+                ],
               ),
             ),
             actions: [
-              _buildProfileMenu(context, ref),
-              const SizedBox(width: 16),
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: _buildProfileMenu(context, ref),
+              ),
             ],
           ),
 
-          // 2. Content Body
+          // 2. Section Header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.teal,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Your Circles",
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.blueGrey.shade900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. Content Body
           communitiesAsyncValue.when(
             loading: () => const SliverFillRemaining(child: Center(child: Loader())),
             error: (error, stack) => SliverFillRemaining(
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-                    const SizedBox(height: 16),
-                    Text('Something went wrong', style: theme.textTheme.bodyLarge),
-                  ],
-                ),
+                child: Text('Failed to load communities', style: theme.textTheme.bodyLarge),
               ),
             ),
             data: (communities) {
@@ -65,13 +132,11 @@ class HomeScreen extends ConsumerWidget {
               }
 
               return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                         (context, index) {
                       final community = communities[index];
-                      // Adding a subtle fade-in/slide effect could go here,
-                      // but keeping it clean for now.
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: CommunityCard(
@@ -88,34 +153,46 @@ class HomeScreen extends ConsumerWidget {
               );
             },
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showActionBottomSheet(context),
-        backgroundColor: Colors.teal,
-        icon: const Icon(Icons.add),
-        label: const Text("New"),
-        elevation: 4,
+        backgroundColor: Colors.teal.shade700,
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: Text(
+          "Create / Join",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white),
+        ),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
 
-  // --- Widgets Refactored for Cleanliness ---
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
 
+  // --- Profile Menu with Corrected Alignment ---
   Widget _buildProfileMenu(BuildContext context, WidgetRef ref) {
     return PopupMenuButton<String>(
       offset: const Offset(0, 50),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
         ),
         child: const CircleAvatar(
           backgroundColor: Colors.white24,
           radius: 18,
-          child: Icon(Icons.person, color: Colors.white),
+          child: Icon(Icons.person_outline, color: Colors.white, size: 20),
         ),
       ),
       onSelected: (value) {
@@ -126,21 +203,21 @@ class HomeScreen extends ConsumerWidget {
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'profile',
           child: ListTile(
-            leading: Icon(Icons.settings, color: Colors.teal),
-            title: Text('Edit Profile'),
+            leading: const Icon(Icons.settings_outlined, color: Colors.teal),
+            title: Text('Edit Profile', style: GoogleFonts.poppins(fontSize: 14)),
             contentPadding: EdgeInsets.zero,
             dense: true,
           ),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'logout',
           child: ListTile(
-            leading: Icon(Icons.logout, color: Colors.redAccent),
-            title: Text('Log Out', style: TextStyle(color: Colors.redAccent)),
+            leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            title: Text('Sign Out', style: GoogleFonts.poppins(fontSize: 14, color: Colors.redAccent)),
             contentPadding: EdgeInsets.zero,
             dense: true,
           ),
@@ -157,26 +234,27 @@ class HomeScreen extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
-                color: Colors.teal.withOpacity(0.1),
+                color: Colors.teal.withOpacity(0.05),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.groups_3_outlined, size: 80, color: Colors.teal),
+              child: Icon(Icons.bubble_chart_outlined, size: 100, color: Colors.teal.shade200),
             ),
             const SizedBox(height: 24),
             Text(
-              'No Communities Yet',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              'No communities yet',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+                color: Colors.blueGrey.shade800,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Join a circle or start your own fund\nto get started.',
+              'Join a circle or start your own fund\nto begin your journey.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: GoogleFonts.poppins(color: Colors.blueGrey.shade400, height: 1.5),
             ),
             const SizedBox(height: 40),
           ],
@@ -188,52 +266,51 @@ class HomeScreen extends ConsumerWidget {
   void _showActionBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              "Launch Growth",
+              style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 24),
+            _buildActionTile(
+              context,
+              icon: Icons.add_business_rounded,
+              color: Colors.teal,
+              title: 'Create New Community',
+              subtitle: 'Lead a circle and manage shared funds',
+              onTap: () => context.push('/create-community'),
+            ),
+            const SizedBox(height: 12),
+            _buildActionTile(
+              context,
+              icon: Icons.group_add_rounded,
+              color: Colors.indigo,
+              title: 'Join with Code',
+              subtitle: 'Use an invite code to enter a circle',
+              onTap: () => context.push('/join-community'),
+            ),
+          ],
+        ),
       ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag Handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Get Started',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              _buildActionTile(
-                context,
-                icon: Icons.add_circle_outline,
-                color: Colors.teal,
-                title: 'Create New Community',
-                subtitle: 'Become an admin & manage funds',
-                onTap: () => context.push('/create-community'),
-              ),
-              const SizedBox(height: 12),
-              _buildActionTile(
-                context,
-                icon: Icons.diversity_3, // Modern "Join" icon
-                color: Colors.indigo,
-                title: 'Join Existing Community',
-                subtitle: 'Use an invite code to enter',
-                onTap: () => context.push('/join-community'),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -245,36 +322,39 @@ class HomeScreen extends ConsumerWidget {
         required String subtitle,
         required VoidCallback onTap,
       }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 28),
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: color.withOpacity(0.04),
+          border: Border.all(color: color.withOpacity(0.1)),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-        onTap: () {
-          Navigator.pop(context);
-          onTap();
-        },
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(subtitle, style: GoogleFonts.poppins(fontSize: 12, color: Colors.blueGrey.shade400)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.blueGrey),
+          ],
+        ),
       ),
     );
   }
