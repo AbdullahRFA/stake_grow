@@ -33,22 +33,23 @@ class LoginScreen extends HookConsumerWidget {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Forgot Password', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Reset Password', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Enter your email address to receive a password reset link.',
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+                'Enter your registered email to receive a password reset link.',
+                style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               TextField(
                 controller: resetEmailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
+                  labelStyle: GoogleFonts.poppins(fontSize: 14),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(Icons.email_outlined, color: Colors.teal),
                 ),
               ),
             ],
@@ -69,7 +70,7 @@ class LoginScreen extends HookConsumerWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Send Link'),
             ),
@@ -81,30 +82,34 @@ class LoginScreen extends HookConsumerWidget {
     // --- UI Construction ---
 
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Clean light background
+      backgroundColor: const Color(0xFFF5F7F9), // Modern neutral background
       body: Stack(
         children: [
           // 1. Background Design Elements
           Positioned(
-            top: -60,
-            left: -60,
+            top: -50,
+            right: -50,
             child: Container(
-              width: 200,
-              height: 200,
+              width: 250,
+              height: 250,
               decoration: BoxDecoration(
-                color: Colors.teal.withOpacity(0.15),
+                gradient: RadialGradient(
+                  colors: [Colors.teal.withOpacity(0.2), Colors.transparent],
+                ),
                 shape: BoxShape.circle,
               ),
             ),
           ),
           Positioned(
-            bottom: -40,
-            right: -40,
+            bottom: -80,
+            left: -80,
             child: Container(
-              width: 150,
-              height: 150,
+              width: 200,
+              height: 200,
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                gradient: RadialGradient(
+                  colors: [Colors.blue.withOpacity(0.1), Colors.transparent],
+                ),
                 shape: BoxShape.circle,
               ),
             ),
@@ -113,102 +118,140 @@ class LoginScreen extends HookConsumerWidget {
           // 2. Main Content
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo/Icon Header
+                  // Logo/Icon Header with Hero-like effect
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(color: Colors.teal.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 5)),
+                        BoxShadow(
+                          color: Colors.teal.withOpacity(0.15),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                        ),
                       ],
                     ),
-                    child: const Icon(Icons.lock_person, size: 50, color: Colors.teal),
+                    child: const Icon(Icons.account_balance_rounded, size: 50, color: Colors.teal),
                   ),
                   const SizedBox(height: 24),
 
                   // Welcome Text
                   Text(
                     'Welcome Back!',
-                    style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: GoogleFonts.poppins(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF2D3142),
+                      letterSpacing: -0.5,
+                    ),
                   ),
+                  const SizedBox(height: 8),
                   Text(
-                    'Login to continue your growth journey',
-                    style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+                    'Sign in to manage your community funds',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      color: Colors.blueGrey[400],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
 
                   // 3. Login Card/Form
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 30, offset: const Offset(0, 10)),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
                       ],
                     ),
                     child: Form(
                       key: formKey,
                       child: Column(
                         children: [
-                          // Email Field
+                          // Email Field (High Visibility)
+                          _buildLabel("EMAIL ADDRESS"),
+                          const SizedBox(height: 8),
                           TextFormField(
                             controller: emailController,
-                            style: GoogleFonts.poppins(),
-                            decoration: _inputDecoration('Email Address', Icons.email_outlined),
-                            validator: (value) => (value == null || value.isEmpty) ? 'Please enter your email' : null,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            decoration: _inputDecoration('Enter your email', Icons.alternate_email_rounded),
+                            validator: (value) => (value == null || value.isEmpty) ? 'Email is required' : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
 
-                          // Password Field
+                          // Password Field (High Visibility)
+                          _buildLabel("PASSWORD"),
+                          const SizedBox(height: 8),
                           TextFormField(
                             controller: passwordController,
                             obscureText: true,
-                            style: GoogleFonts.poppins(),
-                            decoration: _inputDecoration('Password', Icons.lock_outline),
-                            validator: (value) => (value == null || value.isEmpty) ? 'Please enter your password' : null,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 15),
+                            decoration: _inputDecoration('Enter your password', Icons.lock_open_rounded),
+                            validator: (value) => (value == null || value.isEmpty) ? 'Password is required' : null,
                           ),
 
                           // Forgot Password
+                          const SizedBox(height: 16),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: showForgotPasswordDialog,
+                              style: TextButton.styleFrom(padding: EdgeInsets.zero),
                               child: Text(
-                                'Forgot Password?',
+                                'Recovery Password?',
                                 style: GoogleFonts.poppins(
-                                  color: Colors.teal,
-                                  fontWeight: FontWeight.w600,
+                                  color: Colors.teal.shade700,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 13,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
 
                           // Login Button
                           isLoading
-                              ? const CircularProgressIndicator()
-                              : SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: ElevatedButton(
-                              onPressed: login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal,
-                                foregroundColor: Colors.white,
-                                elevation: 5,
-                                shadowColor: Colors.teal.withOpacity(0.4),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: Text(
-                                'Log In',
-                                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                              ? const CircularProgressIndicator(color: Colors.teal)
+                              : Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.teal.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: 58,
+                              child: ElevatedButton(
+                                onPressed: login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                                child: Text(
+                                  'Sign In',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -217,20 +260,20 @@ class LoginScreen extends HookConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
                   // Sign Up Link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text("Don't have an account? ", style: GoogleFonts.poppins(color: Colors.grey[600])),
+                      Text("Not a member? ", style: GoogleFonts.poppins(color: Colors.blueGrey[600], fontWeight: FontWeight.w500)),
                       GestureDetector(
                         onTap: () => context.push('/signup'),
                         child: Text(
-                          'Sign Up',
+                          'Register Now',
                           style: GoogleFonts.poppins(
                             color: Colors.teal,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
@@ -245,26 +288,49 @@ class LoginScreen extends HookConsumerWidget {
     );
   }
 
-  // --- Helper for Input Style ---
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  // --- Helpers for Styling ---
+
+  Widget _buildLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: Colors.blueGrey.shade700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[600]),
-      prefixIcon: Icon(icon, color: Colors.teal),
+      hintText: hint,
+      hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal),
+      prefixIcon: Icon(icon, color: Colors.teal.shade700, size: 22),
       filled: true,
-      fillColor: Colors.grey[50],
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade200, width: 2),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.teal, width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.teal, width: 2.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
       ),
     );
   }
