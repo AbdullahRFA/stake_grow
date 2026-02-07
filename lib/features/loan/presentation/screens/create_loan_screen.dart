@@ -65,7 +65,6 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
       final amount = double.tryParse(amountController.text.trim());
 
       if (amount != null && amount > 0) {
-        // Dismiss Keyboard
         FocusScope.of(context).unfocus();
 
         ref.read(loanControllerProvider.notifier).requestLoan(
@@ -84,17 +83,17 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
     final isLoading = ref.watch(loanControllerProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50], // Modern clean background
       appBar: AppBar(
         title: const Text(
-          'Request Loan',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          'Request Community Loan',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: Colors.white,
-        elevation: 0,
+        elevation: 0.5,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -103,199 +102,45 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
           : Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. Header Illustration/Icon
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.handshake_rounded,
-                      size: 40, color: Colors.teal.shade700),
-                ),
-              ),
-              const SizedBox(height: 24),
+              // 1. Decorative Header Section
+              _buildHeaderSection(),
+              const SizedBox(height: 32),
 
-              // 2. Hero Amount Input
-              const Text(
-                "How much do you need?",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                    letterSpacing: 0.5),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text("৳",
-                      style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal.shade800)),
-                  const SizedBox(width: 5),
-                  IntrinsicWidth(
-                    child: TextFormField(
-                      controller: amountController,
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal.shade900),
-                      decoration: const InputDecoration(
-                        hintText: "0",
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                        isDense: true,
-                      ),
-                      inputFormatters: [
-                        LengthLimitingTextInputFormatter(7),
-                      ],
-                      validator: (val) {
-                        if (val == null || val.isEmpty) return 'Required';
-                        if (double.tryParse(val) == null || double.parse(val) <= 0) return 'Invalid';
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
+              // 2. High-Contrast Amount Input Section
+              _buildLabel("HOW MUCH DO YOU NEED?"),
+              _buildAmountInputCard(),
+              const SizedBox(height: 32),
 
-              // 3. Reason Input
-              _buildLabel("REASON"),
+              // 3. Purpose/Reason Input (High Visibility)
+              _buildLabel("PURPOSE OF LOAN"),
               TextFormField(
                 controller: reasonController,
                 maxLines: 3,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
                 decoration: _inputDecoration(
-                  hint: "Briefly explain why you need this loan...",
-                  icon: Icons.edit_note_rounded,
+                  hint: "E.g. Medical emergency, Educational fees, or Small business capital...",
+                  icon: Icons.edit_document,
                 ),
-                validator: (val) => val == null || val.isEmpty ? 'Reason is required' : null,
+                validator: (val) => val == null || val.isEmpty ? 'Purpose is required' : null,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
-              // 4. Date Picker Card
+              // 4. Interactive Deadline Card
               _buildLabel("REPAYMENT DEADLINE"),
-              InkWell(
-                onTap: pickDate,
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(Icons.calendar_month_rounded,
-                            color: Colors.blue.shade700),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selectedDate == null
-                                  ? "Select Deadline"
-                                  : DateFormat('dd MMMM, yyyy').format(selectedDate!),
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            if (selectedDate != null)
-                              Text(
-                                "${selectedDate!.difference(DateTime.now()).inDays} days from now",
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey.shade600),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded,
-                          size: 16, color: Colors.grey),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
+              _buildDatePickerCard(),
+              const SizedBox(height: 32),
 
-              // 5. Rules / Terms Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.red.shade100),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.gavel_rounded,
-                            size: 18, color: Colors.red.shade800),
-                        const SizedBox(width: 8),
-                        Text("Penalty Rules",
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red.shade900)),
-                      ],
-                    ),
-                    const Divider(color: Colors.red, thickness: 0.5),
-                    _buildRuleItem("1-5 Days Late", "5% Penalty added to principal."),
-                    _buildRuleItem("6-10 Days Late", "10% Penalty added to principal."),
-                    const SizedBox(height: 8),
-                    Text(
-                      "▶ If 10+ days pass, the committee's decision will be final.",
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.red.shade900,
-                          fontWeight: FontWeight.bold,
-                          fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
+              // 5. Compliance/Rules Box
+              _buildPenaltyNoticeCard(),
+              const SizedBox(height: 40),
 
-              // 6. Submit Button
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: submitRequest,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: Colors.teal.withOpacity(0.4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Submit Request',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
+              // 6. Action Button
+              _buildSubmitButton(),
+              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -303,19 +148,199 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
     );
   }
 
-  // --- Helper Widgets ---
+  // --- UI Component Builders ---
+
+  Widget _buildHeaderSection() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withOpacity(0.1),
+                blurRadius: 30,
+                spreadRadius: 2,
+              )
+            ],
+          ),
+          child: Hero(
+            tag: 'loan_icon',
+            child: Icon(Icons.handshake_rounded, size: 48, color: Colors.teal.shade700),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          "Community Financial Support",
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black45, letterSpacing: 0.5),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountInputCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.teal.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 8))
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text("৳", style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: Colors.teal.shade800)),
+          const SizedBox(width: 12),
+          IntrinsicWidth(
+            child: TextFormField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: TextStyle(fontSize: 46, fontWeight: FontWeight.w900, color: Colors.teal.shade900),
+              decoration: const InputDecoration(
+                hintText: "0.00",
+                hintStyle: TextStyle(color: Colors.black12),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              inputFormatters: [LengthLimitingTextInputFormatter(7)],
+              validator: (val) {
+                if (val == null || val.isEmpty) return 'Required';
+                if (double.tryParse(val) == null || double.parse(val) <= 0) return 'Invalid amount';
+                return null;
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatePickerCard() {
+    return InkWell(
+      onTap: pickDate,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.grey.shade200, width: 2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(Icons.calendar_month_rounded, color: Colors.blue.shade700, size: 24),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selectedDate == null ? "Select deadline..." : DateFormat('EEEE, dd MMM yyyy').format(selectedDate!),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: selectedDate == null ? Colors.grey.shade400 : Colors.black87,
+                    ),
+                  ),
+                  if (selectedDate != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        "Must repay within ${selectedDate!.difference(DateTime.now()).inDays + 1} days",
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade800, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPenaltyNoticeCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.red.shade100, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.privacy_tip_rounded, size: 20, color: Colors.red.shade800),
+              const SizedBox(width: 10),
+              Text("LOAN REPAYMENT POLICY", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.red.shade900, fontSize: 13, letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildRuleItem("1-5 Days Late", "5% Penalty added to principal."),
+          _buildRuleItem("6-10 Days Late", "10% Penalty added to principal."),
+          const Padding(
+            padding: EdgeInsets.only(top: 10, left: 24),
+            child: Text(
+              "▶ After 10 days, local committee rules apply.",
+              style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: submitRequest,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.teal.shade700,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 0,
+        ),
+        child: const Text('SUBMIT LOAN REQUEST', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+      ),
+    );
+  }
+
+  // --- Helper Methods ---
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
-          color: Colors.grey,
-        ),
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.blueGrey),
       ),
     );
   }
@@ -323,40 +348,43 @@ class _CreateLoanScreenState extends ConsumerState<CreateLoanScreen> {
   InputDecoration _inputDecoration({required String hint, required IconData icon}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal),
       prefixIcon: Padding(
-        padding: const EdgeInsets.only(bottom: 30), // Align icon to top for maxLines
-        child: Icon(icon, color: Colors.grey),
+        padding: const EdgeInsets.only(bottom: 45), // Adjust icon for multiline
+        child: Icon(icon, color: Colors.teal.shade700, size: 22),
       ),
       filled: true,
-      fillColor: Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.all(22),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(22),
+        borderSide: BorderSide(color: Colors.grey.shade200, width: 2),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Colors.teal.shade200, width: 1.5),
+        borderRadius: BorderRadius.circular(22),
+        borderSide: BorderSide(color: Colors.teal.shade400, width: 2.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(22),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
       ),
     );
   }
 
   Widget _buildRuleItem(String title, String desc) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("• ", style: TextStyle(color: Colors.red)),
+          Icon(Icons.check_circle_outline_rounded, size: 16, color: Colors.red.shade400),
+          const SizedBox(width: 8),
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(color: Colors.black87, fontSize: 12),
+                style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
                 children: [
-                  TextSpan(
-                      text: "$title: ",
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: "$title: ", style: const TextStyle(fontWeight: FontWeight.w900)),
                   TextSpan(text: desc),
                 ],
               ),
