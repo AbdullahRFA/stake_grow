@@ -130,9 +130,6 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
             amountController.text = fixedAmount.toStringAsFixed(0);
           }
 
-          // If switching back to Random, allow editing (clearing is UX preference, keeping existing value is safer)
-          // We handle the readOnly state in the widget tree.
-
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Column(
@@ -215,72 +212,86 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
     );
   }
 
-  // --- Widget Builders ---
+  // --- Modified Widget Builders for Visibility ---
 
   Widget _buildAmountSection(bool isFixed) {
     final bool isLocked = (selectedType == 'Monthly' && isFixed);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
+              color: Colors.grey.withOpacity(0.12),
+              blurRadius: 15,
+              offset: const Offset(0, 6)),
         ],
-        border: isLocked ? Border.all(color: Colors.teal.withOpacity(0.5)) : null,
+        border: Border.all(
+          color: isLocked ? Colors.teal.withOpacity(0.5) : Colors.grey.shade200,
+          width: 1.5,
+        ),
       ),
       child: Column(
         children: [
           Text(
             isLocked ? "Fixed Monthly Amount" : "Enter Amount",
             style: TextStyle(
-                fontSize: 12,
-                color: isLocked ? Colors.teal : Colors.grey[600],
+                fontSize: 13,
+                color: isLocked ? Colors.teal : Colors.teal.shade700,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 0.5),
+                letterSpacing: 0.8),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              const Text("৳",
-                  style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.teal)),
-              const SizedBox(width: 8),
-              IntrinsicWidth(
-                child: TextField(
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                  readOnly: isLocked,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: "0",
-                    hintStyle: TextStyle(color: Colors.grey),
-                  ),
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(7), // Max 9,999,999
-                  ],
-                ),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isLocked ? Colors.grey[50] : Colors.teal.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isLocked ? Colors.transparent : Colors.teal.withOpacity(0.1),
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text("৳",
+                    style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal)),
+                const SizedBox(width: 12),
+                IntrinsicWidth(
+                  child: TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    readOnly: isLocked,
+                    textAlign: TextAlign.center,
+                    autofocus: !isLocked,
+                    style: const TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: "0",
+                      hintStyle: TextStyle(color: Colors.black12),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(7),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           if (isLocked)
             Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.teal.shade50,
                 borderRadius: BorderRadius.circular(20),
@@ -288,10 +299,10 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock, size: 12, color: Colors.teal),
-                  SizedBox(width: 4),
+                  Icon(Icons.lock, size: 14, color: Colors.teal),
+                  SizedBox(width: 6),
                   Text("Locked by subscription",
-                      style: TextStyle(fontSize: 10, color: Colors.teal)),
+                      style: TextStyle(fontSize: 11, color: Colors.teal, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -326,7 +337,6 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
       onTap: () {
         setState(() {
           selectedType = type;
-          // Clear text if switching to Random so user can input fresh
           if (type == 'Random') amountController.clear();
         });
       },
@@ -373,7 +383,7 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
           onTap: () => setState(() => selectedPaymentMethod = name),
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: (MediaQuery.of(context).size.width - 50) / 2, // 2 cols
+            width: (MediaQuery.of(context).size.width - 50) / 2,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: isSelected ? color.withOpacity(0.1) : Colors.white,
@@ -397,7 +407,7 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    name.replaceAll("Manual ", ""), // Shorten text
+                    name.replaceAll("Manual ", ""),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -416,36 +426,23 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
   }
 
   Widget _buildPaymentDetailsForm() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildTextField(
-            controller: phoneController,
-            label: "Sender Number",
-            icon: Icons.phone_android_rounded,
-            hint: "e.g. 017xxxxxxxx",
-            isPhone: true,
-          ),
-          const Divider(height: 24),
-          _buildTextField(
-            controller: trxIdController,
-            label: "Transaction ID (TrxID)",
-            icon: Icons.receipt_long_rounded,
-            hint: "Copy from SMS/App",
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _buildTextField(
+          controller: phoneController,
+          label: "Sender Number",
+          icon: Icons.phone_android_rounded,
+          hint: "e.g. 017xxxxxxxx",
+          isPhone: true,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: trxIdController,
+          label: "Transaction ID (TrxID)",
+          icon: Icons.receipt_long_rounded,
+          hint: "Copy from SMS or App",
+        ),
+      ],
     );
   }
 
@@ -455,17 +452,38 @@ class _CreateDonationScreenState extends ConsumerState<CreateDonationScreen> {
         required IconData icon,
         required String hint,
         bool isPhone = false}) {
-    return TextField(
-      controller: controller,
-      keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-        prefixIcon: Icon(icon, color: Colors.grey),
-        border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
-        isDense: true,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.teal.shade800, fontSize: 14, fontWeight: FontWeight.bold),
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal),
+          prefixIcon: Icon(icon, color: Colors.teal),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
       ),
     );
   }
